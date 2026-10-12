@@ -50,24 +50,29 @@ Evaluates prerequisite rules, tracks build state on disk via `state` API, and sc
 
 ```
 Usage:
-  make [-f makefile] [-t db] [-B] [-r] [-n] [-v] [target]
+  make [-f makefile] [-t db] [-a] [-r] [-n] [-v] [target]
 ```
 
 **Options:**
 - `-f <file>`: Alternate makefile (default: `makefile`).
 - `-t <db>`: Alternate timestamp database name (default: `ts`).
-- `-B`: Unconditional rebuild (forces all targets to be rebuilt).
+- `-a`: Unconditional rebuild (forces all targets to be rebuilt).
 - `-r`: Reset build state (clears `make.sta`).
 - `-n`: Dry run (test mode) - bypasses epoch retrieval, prints action plan without modifying disk or `$$$.SUB`.
 - `-v`: Verbose mode - traces dependency evaluation, out-of-date reasons, and batch creation.
 - `target`: Target to build (defaults to first target in `makefile`).
 
-**Makefile Syntax:**
-Supports variable definitions, line continuations (`\`), and automatic variables:
-- `$(VAR)` / `${VAR}`: User-defined variables (e.g. `PIP=a:pip`, `CC=cc`).
-- `$@`: Target name.
-- `$<`: First prerequisite name.
-- `$*` / `$^`: All prerequisites names (space-separated).
+**Makefile Syntax & Variables:**
+
+- **Explicit Rules Only**: In keeping with the minimalist CP/M-86 environment, all dependency rules and recipes must be explicit. Pattern rules (e.g. `%.o: %.c`) and suffix rules (e.g. `.c.o:`) are **not** supported.
+- **Variable Definitions**: Defined at the top level using `NAME = VALUE` or `NAME=VALUE` (e.g. `PIP=a:pip`, `CC=cc -o $@`). Variable names are matched case-insensitively.
+- **Variable Expansion**: Evaluated inside recipe command lines using `$(VAR)`, `${VAR}`, or `$V`.
+- **Automatic Variables**:
+  - `$@` : Evaluates to the target name.
+  - `$<` : Evaluates to the first prerequisite name.
+  - `$*` / `$^` : Evaluates to all prerequisites (space-separated).
+  - `$$` : Literal `$` character.
+- **Line Continuations**: Lines ending with `\` are joined with the subsequent line.
 
 ```makefile
 # Simple dependency rule with variables and automatic macros

@@ -169,12 +169,12 @@ else
 fi
 
 
-# 8b. Unconditional rebuild (-B)
-run make.cmd -f test_simple.mk -t test_ts -n -B test_app.cmd
+# 8b. Unconditional rebuild (-a)
+run make.cmd -f test_simple.mk -t test_ts -n -a test_app.cmd
 if [ "$out" = "$expected_cmds" ]; then
-	pass "make.cmd" "-B forces unconditional rebuild"
+	pass "make.cmd" "-a forces unconditional rebuild"
 else
-	blame "make.cmd" "-B forces unconditional rebuild" "-f test_simple.mk -t test_ts -n -B test_app.cmd" "$expected_cmds" "$out"
+	blame "make.cmd" "-a forces unconditional rebuild" "-f test_simple.mk -t test_ts -n -a test_app.cmd" "$expected_cmds" "$out"
 fi
 
 # ==================================================================== #

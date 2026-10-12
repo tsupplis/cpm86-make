@@ -82,10 +82,10 @@ static void make_trim_trailing(s)
 static void make_usage()
 {
     fprintf(stderr, "ERR: Invalid command line\n");
-    fprintf(stderr, "INF: make [-f makefile] [-t db] [-B] [-r] [-n] [-v] [target]\n");
+    fprintf(stderr, "INF: make [-f makefile] [-t db] [-a] [-r] [-n] [-v] [target]\n");
     fprintf(stderr, "     -f <file>  alternate makefile (default: makefile)\n");
     fprintf(stderr, "     -t <db>    alternate timestamp db (default: ts)\n");
-    fprintf(stderr, "     -B         unconditional rebuild (force all targets)\n");
+    fprintf(stderr, "     -a         unconditional rebuild (force all targets)\n");
     fprintf(stderr, "     -r         reset build state (clear make.sta)\n");
     fprintf(stderr, "     -n         dry run / test mode (print commands only)\n");
     fprintf(stderr, "     -v         verbose mode (trace evaluation and batching)\n");
@@ -661,7 +661,8 @@ int main(argc, argv)
         } else if (strcmp(argv[argi], "-v") == 0 || strcmp(argv[argi], "-V") == 0) {
             make_verbose = 1;
             argi++;
-        } else if (strcmp(argv[argi], "-b") == 0 || strcmp(argv[argi], "-B") == 0) {
+        } else if (strcmp(argv[argi], "-a") == 0 || strcmp(argv[argi], "-A") == 0 ||
+                   strcmp(argv[argi], "-b") == 0 || strcmp(argv[argi], "-B") == 0) {
             make_always_build = 1;
             argi++;
         } else if (strcmp(argv[argi], "-r") == 0 || strcmp(argv[argi], "-R") == 0) {
