@@ -115,13 +115,17 @@ Output follows `cmdinfo` format:
 Requires the `cpm86-crossdev` toolchain (`aztec42_cc`, `aztec42_link`, etc.).
 
 The project also depends on the `util` library from
-[cpm86-hacking](https://github.com/tsupplis/cpm86-hacking). The following
-files are taken from there and kept in this directory; they are not built here:
+[cpm86-hacking](https://github.com/tsupplis/cpm86-hacking) and on the `ndbm`
+library from [cpm86-ports](https://github.com/tsupplis/cpm86-ports). The
+following files are taken from there and kept in this directory; they are not
+built here:
 
-| File | Purpose |
-|------|---------|
-| `util.lib` | Library linked into `ts.cmd` and `make.cmd` |
-| `util.h`, `conio.h`, `debug.h`, `dirent.h`, `epoch.h`, `gfx.h`, `sub.h` | Headers used at compile time |
+| File | Source | Purpose |
+|------|--------|---------|
+| `util.lib` | cpm86-hacking | Library linked into `ts.cmd` and `make.cmd` |
+| `util.h`, `conio.h`, `debug.h`, `dirent.h`, `epoch.h`, `gfx.h`, `sub.h` | cpm86-hacking | Headers used at compile time |
+| `ndbm.lib` | cpm86-ports | Indexed timestamp database library linked into `ts.cmd` and `make.cmd` |
+| `ndbm.h` | cpm86-ports | Header used at compile time |
 
 ```sh
 make          # builds ts.cmd and make.cmd
@@ -196,7 +200,7 @@ flowchart TD
 | [cpm86-vi](https://github.com/tsupplis/cpm86-vi)             | STevie vi port for CP/M-86 and PC-DOS 1.1 |
 | [cpm86-msbasic](https://github.com/tsupplis/cpm86-msbasic)   | A recreaction of msbasic-86 for CP/M-86 and PC-DOS 1.1 from gwbasic sources |
 | [cpm86-menu](https://github.com/tsupplis/cpm86-menu)   | A submit replacement and a menu system for submit orchestration for CP/M-86 1.1 |
-| [cpm86-make](https://github.com/tsupplis/cpm86-make)   | A simple submit base make tool for CP/M-86 1.1 |
+| [cpm86-make](https://github.com/tsupplis/cpm86-make)   | A simple submit based make tool for CP/M-86 1.1 |
 | [pcdos11-hacking](https://github.com/tsupplis/pcdos11-hacking) | PC-DOS 1.1 distribution, tools and notes |
 
 ## License
