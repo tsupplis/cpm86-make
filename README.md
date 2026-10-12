@@ -11,6 +11,8 @@ CP/M-86 1.1 (BDOS 2.2) lacks file timestamps, sub-process execution (`fork`/`exe
 
 This make will be enhanced to be forward compatible with BDOS >= 3.0 at a later stage.
 
+![make running on CP/M-86](images/make.png)
+
 ---
 
 ## Command Reference
