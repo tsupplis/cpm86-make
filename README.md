@@ -4,44 +4,10 @@ Laconic build automation, state management, and timestamp tracking for CP/M-86 1
 
 ---
 
-## Overview & Architecture
+## Overview
 
 CP/M-86 lacks file timestamps, sub-process execution (`fork`/`exec`), and process exit codes. 
-`make` and `ts` resolve this through persistent indexed timestamps, disk-backed state management, and CCP batching:
-
-```mermaid
-flowchart LR
-    MF[makefile] --> MK[make.cmd]
-    MK -->|Writes Queue| SUB[$$$.SUB]
-    MK <-->|Reads/Saves| STA[make.sta]
-    MK <-->|Reads/Updates| DB[(ts.db)]
-    SUB -->|Handover via Warm Boot| CCP[CCP Engine]
-    CCP -->|1. Executes Tools| TGT[Target Files]
-    CCP -->|2. Runs ts -s| DB
-    CCP -->|3. Resumes| MK
-```
-
-### Execution Lifecycle
-
-```mermaid
-flowchart TD
-    A[make invocation] --> B{BDOS <= 2.2?}
-    B -->|No| C[ERR: Exit]
-    B -->|Yes| D[Parse makefile -f file]
-    D --> E[Read ts.db Timestamps -t db]
-    E --> F[Build Dependency DAG & Stack]
-    F --> G{Mode?}
-    G -->|Dry Run -n| H[INF: Print Actions & Exit - No Epoch / No SUB]
-    G -->|Build Mode| I[Save make.sta on Disk]
-    I --> J[Generate $$$.SUB Queue]
-    J --> K[Warm Boot to CCP]
-    K --> L[CCP Runs Tool Commands]
-    L --> M[CCP Runs ts -s target]
-    M --> N[CCP Restarts make]
-    N --> O{Target Created?}
-    O -->|No| P[ERR: Target not created]
-    O -->|Yes| Q[Pop Target from make.sta & Continue]
-```
+`make` and `ts` resolve this through persistent indexed timestamps (`ndbm`), disk-backed state management (`make.sta`), and CCP batching (`$$$.SUB`).
 
 ---
 
@@ -93,23 +59,20 @@ Usage:
 **Makefile Syntax:**
 ```makefile
 # Simple dependency rule
-target: dep1 dep2 ...
-	command1 arg1 arg2
-	command2 arg1 arg2
-```
+.phony: all clean
 
----
+all: app.cmd
 
-## Dependency Decision Logic
+app.cmd: main.o util.o
+	link -o app.cmd main.o util.o
 
-```mermaid
-flowchart TD
-    T{Target T Exists on Disk?} -->|No| Build[Build T]
-    T -->|Yes| S{Timestamp T in ts.db?}
-    S -->|No| Build
-    S -->|Yes| P{Any Prereq Rebuilt or Newer?}
-    P -->|Yes| Build
-    P -->|No| OK[T is Up to Date]
+main.o: main.c
+	cc -o main.o main.c
+
+clean:
+	era *.o
+	era *.cmd
+	ts -d *.o
 ```
 
 ---
@@ -133,14 +96,68 @@ files are taken from there and kept in this directory; they are not built here:
 
 | File | Purpose |
 |------|---------|
-| `util.lib` | Library linked into `menu.cmd`, `msub.cmd` and `hello.cmd` |
+| `util.lib` | Library linked into `ts.cmd` and `make.cmd` |
 | `util.h`, `conio.h`, `debug.h`, `dirent.h`, `epoch.h`, `gfx.h`, `sub.h` | Headers used at compile time |
 
-```
-make          # builds menu.cmd, msub.cmd and hello.cmd
-make dist     # msub.zip: menu.cmd, msub.cmd, hello.cmd, sample .dat/.
+```sh
+make          # builds ts.cmd and make.cmd
+make test     # runs regression test suite under emu2
 make clean    # removes all generated files
 ```
+
+---
+
+## Architecture
+
+### Component Interaction
+
+```mermaid
+flowchart LR
+    MF[makefile] --> MK[make.cmd]
+    MK -->|Writes Queue| SUB[$$$.SUB]
+    MK <-->|Reads/Saves| STA[make.sta]
+    MK <-->|Reads/Updates| DB[(ts.db)]
+    SUB -->|Handover via Warm Boot| CCP[CCP Engine]
+    CCP -->|1. Executes Tools| TGT[Target Files]
+    CCP -->|2. Runs ts -s| DB
+    CCP -->|3. Resumes| MK
+```
+
+### Execution Lifecycle
+
+```mermaid
+flowchart TD
+    A[make invocation] --> B{BDOS <= 2.2?}
+    B -->|No| C[ERR: Exit]
+    B -->|Yes| D[Parse makefile -f file]
+    D --> E[Read ts.db Timestamps -t db]
+    E --> F[Build Dependency DAG & Stack]
+    F --> G{Mode?}
+    G -->|Dry Run -n| H[INF: Print Actions & Exit - No Epoch / No SUB]
+    G -->|Build Mode| I[Save make.sta on Disk]
+    I --> J[Generate $$$.SUB Queue]
+    J --> K[Warm Boot to CCP]
+    K --> L[CCP Runs Tool Commands]
+    L --> M[CCP Runs ts -s target]
+    M --> N[CCP Restarts make]
+    N --> O{Target Created?}
+    O -->|No| P[ERR: Target not created]
+    O -->|Yes| Q[Pop Target from make.sta & Continue]
+```
+
+### Dependency Decision Logic
+
+```mermaid
+flowchart TD
+    T{Target T Exists on Disk?} -->|No| Build[Build T]
+    T -->|Yes| S{Timestamp T in ts.db?}
+    S -->|No| Build
+    S -->|Yes| P{Any Prereq Rebuilt or Newer?}
+    P -->|Yes| Build
+    P -->|No| OK[T is Up to Date]
+```
+
+---
 
 ## Companion projects
 
@@ -154,9 +171,10 @@ make clean    # removes all generated files
 | [cpm86-ports](https://github.com/tsupplis/cpm86-ports)       | CP/M-86 application ports in C and assembler |
 | [cpm86-vi](https://github.com/tsupplis/cpm86-vi)             | STevie vi port for CP/M-86 and PC-DOS 1.1 |
 | [cpm86-msbasic](https://github.com/tsupplis/cpm86-msbasic)   | A recreaction of msbasic-86 for CP/M-86 and PC-DOS 1.1 from gwbasic sources |
-| [cpm86-menu](https://github.com/tsupplis/cpm86-menu)   | A submit replacement and a menu system for submit orchestration |
+| [cpm86-menu](https://github.com/tsupplis/cpm86-menu)   | A submit replacement and a menu system for submit orchestration for CP/M-86 1.1 |
+| [cpm86-make](https://github.com/tsupplis/cpm86-make)   | A simple submit base make tool for CP/M-86 1.1 |
 | [pcdos11-hacking](https://github.com/tsupplis/pcdos11-hacking) | PC-DOS 1.1 distribution, tools and notes |
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE.md).
