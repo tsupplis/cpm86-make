@@ -6,8 +6,10 @@ Laconic build automation, state management, and timestamp tracking for CP/M-86 1
 
 ## Overview
 
-CP/M-86 lacks file timestamps, sub-process execution (`fork`/`exec`), and process exit codes. 
+CP/M-86 1.1 (BDOS 2.2) lacks file timestamps, sub-process execution (`fork`/`exec`), and process exit codes. 
 `make` and `ts` resolve this through persistent indexed timestamps (`ndbm`), disk-backed state management (`make.sta`), and CCP batching (`$$$.SUB`).
+
+This make will be enhanced to be forward compatible with BDOS >= 3.0 at a later stage.
 
 ---
 
@@ -22,12 +24,14 @@ Usage:
   ts [-t db] <filepattern...>         Query timestamp for files (0 if not recorded)
   ts [-t db] -s <file> [timestamp]   Set file timestamp (system epoch or explicit value)
   ts [-t db] -d <filepattern...>       Delete file timestamp records
+  ts [-t db] -l                       List all recorded timestamps
 ```
 
 **Options:**
 - `-t <db>`: Alternate timestamp database name (default: `ts`).
 - `-s`: Stamp file with current system epoch (calls `epoch.lib` and enforces BDOS <= 2.2 guard if `[timestamp]` is omitted; uses given integer if specified).
 - `-d`: Remove matching entries from database (supports wildcards `*`, `?`).
+- `-l`: List all recorded timestamps in database.
 
 **Examples:**
 ```
@@ -46,33 +50,46 @@ Evaluates prerequisite rules, tracks build state on disk via `state` API, and sc
 
 ```
 Usage:
-  make [-f makefile] [-t db] [-n] [-v] [target]
+  make [-f makefile] [-t db] [-B] [-r] [-n] [-v] [target]
 ```
 
 **Options:**
 - `-f <file>`: Alternate makefile (default: `makefile`).
 - `-t <db>`: Alternate timestamp database name (default: `ts`).
+- `-B`: Unconditional rebuild (forces all targets to be rebuilt).
+- `-r`: Reset build state (clears `make.sta`).
 - `-n`: Dry run (test mode) - bypasses epoch retrieval, prints action plan without modifying disk or `$$$.SUB`.
 - `-v`: Verbose mode - traces dependency evaluation, out-of-date reasons, and batch creation.
 - `target`: Target to build (defaults to first target in `makefile`).
 
 **Makefile Syntax:**
+Supports variable definitions, line continuations (`\`), and automatic variables:
+- `$(VAR)` / `${VAR}`: User-defined variables (e.g. `PIP=a:pip`, `CC=cc`).
+- `$@`: Target name.
+- `$<`: First prerequisite name.
+- `$*` / `$^`: All prerequisites names (space-separated).
+
 ```makefile
-# Simple dependency rule
+# Simple dependency rule with variables and automatic macros
 .phony: all clean
 
-all: app.cmd
+PIP=a:pip
 
-app.cmd: main.o util.o
-	link -o app.cmd main.o util.o
+all: bundle.out
 
-main.o: main.c
-	cc -o main.o main.c
+bundle.out: part1.out part2.out
+	$(PIP) $@=part1.out,part2.out
+
+part1.out: part1.txt
+	$(PIP) $@=$<
+
+part2.out: part2.txt \
+	part2.inc
+	$(PIP) $@=$*
 
 clean:
-	era *.o
-	era *.cmd
-	ts -d *.o
+	era *.out
+	ts -d *.out
 ```
 
 ---

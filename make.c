@@ -21,6 +21,7 @@ extern int unlink();
 #endif
 
 static int make_verbose = 0;
+static int make_always_build = 0;
 
 /* Convert string to lowercase in place */
 static void make_strlower(s)
@@ -81,9 +82,11 @@ static void make_trim_trailing(s)
 static void make_usage()
 {
     fprintf(stderr, "ERR: Invalid command line\n");
-    fprintf(stderr, "INF: make [-f makefile] [-t db] [-n] [-v] [target]\n");
+    fprintf(stderr, "INF: make [-f makefile] [-t db] [-B] [-r] [-n] [-v] [target]\n");
     fprintf(stderr, "     -f <file>  alternate makefile (default: makefile)\n");
     fprintf(stderr, "     -t <db>    alternate timestamp db (default: ts)\n");
+    fprintf(stderr, "     -B         unconditional rebuild (force all targets)\n");
+    fprintf(stderr, "     -r         reset build state (clear make.sta)\n");
     fprintf(stderr, "     -n         dry run / test mode (print commands only)\n");
     fprintf(stderr, "     -v         verbose mode (trace evaluation and batching)\n");
     exit(1);
@@ -195,6 +198,188 @@ static make_target_t *make_find_target(g, name)
     return NULL;
 }
 
+/* Set or update a variable definition */
+static void make_set_var(g, name, val)
+    make_graph_t *g;
+    char *name;
+    char *val;
+{
+    int i;
+    char lower_name[MAKE_VAR_NAME_LEN];
+
+    if (!g || !name || !*name)
+        return;
+
+    strncpy(lower_name, name, sizeof(lower_name) - 1);
+    lower_name[sizeof(lower_name) - 1] = '\0';
+    make_strlower(lower_name);
+
+    for (i = 0; i < g->var_count; i++) {
+        char exist_lower[MAKE_VAR_NAME_LEN];
+        strncpy(exist_lower, g->vars[i].name, sizeof(exist_lower) - 1);
+        exist_lower[sizeof(exist_lower) - 1] = '\0';
+        make_strlower(exist_lower);
+        if (strcmp(exist_lower, lower_name) == 0) {
+            strncpy(g->vars[i].value, val, MAKE_VAR_VAL_LEN - 1);
+            g->vars[i].value[MAKE_VAR_VAL_LEN - 1] = '\0';
+            return;
+        }
+    }
+
+    if (g->var_count < MAKE_MAX_VARS) {
+        strncpy(g->vars[g->var_count].name, name, MAKE_VAR_NAME_LEN - 1);
+        g->vars[g->var_count].name[MAKE_VAR_NAME_LEN - 1] = '\0';
+        strncpy(g->vars[g->var_count].value, val, MAKE_VAR_VAL_LEN - 1);
+        g->vars[g->var_count].value[MAKE_VAR_VAL_LEN - 1] = '\0';
+        g->var_count++;
+    }
+}
+
+/* Retrieve variable value by name (case-insensitive) */
+static char *make_get_var(g, name)
+    make_graph_t *g;
+    char *name;
+{
+    int i;
+    char lower_name[MAKE_VAR_NAME_LEN];
+
+    if (!g || !name || !*name)
+        return NULL;
+
+    strncpy(lower_name, name, sizeof(lower_name) - 1);
+    lower_name[sizeof(lower_name) - 1] = '\0';
+    make_strlower(lower_name);
+
+    for (i = 0; i < g->var_count; i++) {
+        char exist_lower[MAKE_VAR_NAME_LEN];
+        strncpy(exist_lower, g->vars[i].name, sizeof(exist_lower) - 1);
+        exist_lower[sizeof(exist_lower) - 1] = '\0';
+        make_strlower(exist_lower);
+        if (strcmp(exist_lower, lower_name) == 0)
+            return g->vars[i].value;
+    }
+    return NULL;
+}
+
+/* Expand variables and automatic macros ($@, $<, $*, $^, $(VAR)) */
+static void make_expand_cmd(g, dst, max_len, src, t)
+    make_graph_t *g;
+    char *dst;
+    int max_len;
+    char *src;
+    make_target_t *t;
+{
+    char *p = src;
+    int d = 0;
+    char all_deps[MAKE_LINE_LEN];
+    int i;
+
+    /* Build space-separated list of all dependencies */
+    all_deps[0] = '\0';
+    if (t) {
+        for (i = 0; i < t->dep_count; i++) {
+            if (i > 0 && (int)strlen(all_deps) + 1 < (int)sizeof(all_deps))
+                strcat(all_deps, " ");
+            if ((int)strlen(all_deps) + (int)strlen(t->deps[i]) < (int)sizeof(all_deps))
+                strcat(all_deps, t->deps[i]);
+        }
+    }
+
+    while (*p && d < max_len - 1) {
+        if (*p == '$') {
+            p++;
+            if (*p == '\0') {
+                dst[d++] = '$';
+                break;
+            }
+            if (*p == '$') {
+                dst[d++] = '$';
+                p++;
+                continue;
+            }
+            if (*p == '@') {
+                char *sub = (t ? t->name : "");
+                while (*sub && d < max_len - 1)
+                    dst[d++] = *sub++;
+                p++;
+                continue;
+            }
+            if (*p == '<') {
+                char *sub = (t && t->dep_count > 0 ? t->deps[0] : "");
+                while (*sub && d < max_len - 1)
+                    dst[d++] = *sub++;
+                p++;
+                continue;
+            }
+            if (*p == '*' || *p == '^') {
+                char *sub = all_deps;
+                while (*sub && d < max_len - 1)
+                    dst[d++] = *sub++;
+                p++;
+                continue;
+            }
+            if (*p == '(' || *p == '{') {
+                char close_char = (*p == '(') ? ')' : '}';
+                char var_name[MAKE_VAR_NAME_LEN];
+                int vi = 0;
+                char *sub;
+
+                p++;
+                while (*p && *p != close_char && vi < (int)sizeof(var_name) - 1) {
+                    var_name[vi++] = *p++;
+                }
+                var_name[vi] = '\0';
+                if (*p == close_char) p++;
+
+                sub = make_get_var(g, var_name);
+                if (sub) {
+                    while (*sub && d < max_len - 1)
+                        dst[d++] = *sub++;
+                }
+                continue;
+            }
+            /* Single character var, e.g. $X */
+            {
+                char var_name[2];
+                char *sub;
+                var_name[0] = *p++;
+                var_name[1] = '\0';
+                sub = make_get_var(g, var_name);
+                if (sub) {
+                    while (*sub && d < max_len - 1)
+                        dst[d++] = *sub++;
+                }
+                continue;
+            }
+        }
+        dst[d++] = *p++;
+    }
+    dst[d] = '\0';
+}
+
+/* Read logical line with line continuation support (\ at end) */
+static int make_read_logical_line(buf, max_len, fp)
+    char *buf;
+    int max_len;
+    FILE *fp;
+{
+    int total_len = 0;
+    buf[0] = '\0';
+
+    while (fgets(buf + total_len, max_len - total_len, fp)) {
+        int len;
+        make_trim_trailing(buf + total_len);
+        len = strlen(buf);
+        if (len > 0 && buf[len - 1] == '\\') {
+            buf[len - 1] = ' ';
+            total_len = len;
+            continue;
+        }
+        return 1;
+    }
+    return total_len > 0;
+}
+
 /* Parse a makefile into the dependency graph */
 int make_parse(g, filepath)
     make_graph_t *g;
@@ -212,9 +397,10 @@ int make_parse(g, filepath)
         return -1;
     }
 
-    while (fgets(line, sizeof(line), fp)) {
+    while (make_read_logical_line(line, sizeof(line), fp)) {
         char *p;
         char *colon;
+        char *eq;
 
         /* Skip comments */
         p = line;
@@ -241,15 +427,31 @@ int make_parse(g, filepath)
             if (*cmd_text == '\0')
                 continue;
             if (cur_target->cmd_count < MAKE_MAX_CMDS) {
-                strncpy(cur_target->cmds[cur_target->cmd_count].text, cmd_text, MAKE_LINE_LEN - 1);
-                cur_target->cmds[cur_target->cmd_count].text[MAKE_LINE_LEN - 1] = '\0';
+                make_expand_cmd(g, cur_target->cmds[cur_target->cmd_count].text, MAKE_LINE_LEN, cmd_text, cur_target);
                 cur_target->cmd_count++;
             }
             continue;
         }
 
-        /* Target line (target: dep1 dep2 ...) */
+        /* Check for variable definition (NAME = VALUE) */
+        eq = strchr(line, '=');
         colon = strchr(line, ':');
+        if (eq != NULL && (colon == NULL || eq < colon)) {
+            char *var_name;
+            char *var_val;
+
+            *eq = '\0';
+            var_name = make_skip_ws(line);
+            make_trim_trailing(var_name);
+            var_val = make_skip_ws(eq + 1);
+            make_trim_trailing(var_val);
+
+            make_set_var(g, var_name, var_val);
+            cur_target = NULL;
+            continue;
+        }
+
+        /* Target line (target: dep1 dep2 ...) */
         if (colon != NULL) {
             char *tgt_name;
             char *deps_part;
@@ -392,7 +594,7 @@ static int make_eval_target(g, tgt_name, dbname, st)
        3. Timestamp in ts.db is 0 (unrecorded), OR
        4. Any dependency was rebuilt (needed), OR
        5. Any dependency is newer than target */
-    if (t->is_phony || !exists || target_ts == 0L || dep_needed) {
+    if (make_always_build || t->is_phony || !exists || target_ts == 0L || dep_needed) {
         t->needed = 1;
     }
 
@@ -437,6 +639,7 @@ int main(argc, argv)
     char *target = NULL;
     int dry_run = 0;
     int is_resumed = 0;
+    int reset_state = 0;
     int argi = 1;
     make_graph_t graph;
     make_state_t state;
@@ -458,6 +661,12 @@ int main(argc, argv)
         } else if (strcmp(argv[argi], "-v") == 0 || strcmp(argv[argi], "-V") == 0) {
             make_verbose = 1;
             argi++;
+        } else if (strcmp(argv[argi], "-b") == 0 || strcmp(argv[argi], "-B") == 0) {
+            make_always_build = 1;
+            argi++;
+        } else if (strcmp(argv[argi], "-r") == 0 || strcmp(argv[argi], "-R") == 0) {
+            reset_state = 1;
+            argi++;
         } else if (argv[argi][0] == '-') {
             make_usage();
         } else {
@@ -475,6 +684,12 @@ int main(argc, argv)
             fprintf(stderr, "ERR: Requires CP/M-86 1.1 or compatible (BDOS <= 2.2)\n");
             return 1;
         }
+    }
+
+    /* Reset state if requested */
+    if (reset_state) {
+        if (state_exists(STATE_DEFAULT_FILE))
+            state_delete(STATE_DEFAULT_FILE);
     }
 
     /* Parse makefile first */

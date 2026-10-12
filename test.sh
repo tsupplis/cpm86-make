@@ -32,7 +32,7 @@ run() {
 
 cleanup() {
 	rm -f test_ts.dir test_ts.pag make.sta $$$.SUB
-	rm -f out.tmp err.tmp test_*.mk
+	rm -f out.tmp err.tmp test_*.mk test_*.txt test_*.inc
 	rm -f test_main.c test_util.c test_a.c test_b.c test_comm.h
 	rm -f test_main.o test_util.o test_app.cmd test_prog.cmd
 }
@@ -97,6 +97,16 @@ else
 	blame "ts.cmd" "exact delete removes single key" "-t test_ts -d test_util.c" "0" "$out"
 fi
 
+# 5b. List all records (-l)
+run ts.cmd -t test_ts -s test_list1.c 500
+run ts.cmd -t test_ts -s test_list2.c 600
+run ts.cmd -t test_ts -l
+if printf '%s\n' "$out" | grep -qiF "test_list1.c: 500" && printf '%s\n' "$out" | grep -qiF "test_list2.c: 600"; then
+	pass "ts.cmd" "-l lists all records"
+else
+	blame "ts.cmd" "-l lists all records" "-t test_ts -l" "test_list1.c: 500 and test_list2.c: 600" "$out"
+fi
+
 
 # ==================================================================== #
 echo "== make.cmd: dependency DAG & -n dry run =="
@@ -158,6 +168,51 @@ else
 	blame "make.cmd" "partial rebuild triggered when single source is newer" "-f test_simple.mk -t test_ts -n test_app.cmd" "$expected_rebuild" "$out"
 fi
 
+
+# 8b. Unconditional rebuild (-B)
+run make.cmd -f test_simple.mk -t test_ts -n -B test_app.cmd
+if [ "$out" = "$expected_cmds" ]; then
+	pass "make.cmd" "-B forces unconditional rebuild"
+else
+	blame "make.cmd" "-B forces unconditional rebuild" "-f test_simple.mk -t test_ts -n -B test_app.cmd" "$expected_cmds" "$out"
+fi
+
+# ==================================================================== #
+echo "== make.cmd: defines and automatic variables =="
+# ==================================================================== #
+
+cat << 'EOF' > test_vars.mk
+PIP=a:pip
+
+all: bundle.out
+
+bundle.out: test_p1.out test_p2.out
+	$(PIP) $@=test_p1.out,test_p2.out
+
+test_p1.out: test_p1.txt
+	$(PIP) $@=$<
+
+test_p2.out: test_p2.txt \
+	test_p2.inc
+	$(PIP) $@=$*
+EOF
+
+echo "p1" > test_p1.txt
+echo "p2" > test_p2.txt
+echo "inc" > test_p2.inc
+
+run make.cmd -f test_vars.mk -t test_ts -n
+expected_vars="a:pip test_p1.out=test_p1.txt
+a:pip test_p2.out=test_p2.txt test_p2.inc
+a:pip bundle.out=test_p1.out,test_p2.out"
+
+if [ "$out" = "$expected_vars" ]; then
+	pass "make.cmd" "expands variables, automatic macros and line continuations"
+else
+	blame "make.cmd" "expands variables, automatic macros and line continuations" "-f test_vars.mk -n" "$expected_vars" "$out"
+fi
+
+rm -f test_p1.txt test_p2.txt test_p2.inc
 
 # ==================================================================== #
 echo "== make.cmd: diamond dependencies =="

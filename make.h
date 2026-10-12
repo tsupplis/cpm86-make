@@ -12,12 +12,20 @@
 #define MAKE_MAX_TARGETS 32
 #define MAKE_MAX_DEPS    16
 #define MAKE_MAX_CMDS    16
+#define MAKE_MAX_VARS    32
 #define MAKE_LINE_LEN    128
 #define MAKE_NAME_LEN    64
+#define MAKE_VAR_NAME_LEN 32
+#define MAKE_VAR_VAL_LEN  128
 
 typedef struct _make_cmd_t {
     char text[MAKE_LINE_LEN];
 } make_cmd_t;
+
+typedef struct _make_var_t {
+    char name[MAKE_VAR_NAME_LEN];
+    char value[MAKE_VAR_VAL_LEN];
+} make_var_t;
 
 typedef struct _make_target_t {
     char name[MAKE_NAME_LEN];
@@ -35,6 +43,8 @@ typedef struct _make_graph_t {
     int target_count;
     make_target_t targets[MAKE_MAX_TARGETS];
     char first_target[MAKE_NAME_LEN];
+    int var_count;
+    make_var_t vars[MAKE_MAX_VARS];
 } make_graph_t;
 
 #ifndef __STDC__

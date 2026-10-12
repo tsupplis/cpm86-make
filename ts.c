@@ -78,6 +78,8 @@ static void ts_usage()
     fprintf(stderr, "     - set file timestamp (epoch or explicit value)\n");
     fprintf(stderr, "     ts [-t db] -d <filepattern...>\n");
     fprintf(stderr, "     - delete timestamp for file patterns\n");
+    fprintf(stderr, "     ts [-t db] -l\n");
+    fprintf(stderr, "     - list all recorded file timestamps\n");
     exit(1);
 }
 
@@ -297,6 +299,30 @@ static int ts_del(dbname, patterns, count)
     return 0;
 }
 
+/* List all timestamps recorded in the database */
+static int ts_list(dbname)
+    char *dbname;
+{
+    DBM *db;
+    datum key, val;
+
+    db = ts_open_ro(dbname);
+    if (!db)
+        return 0;
+
+    key = dbm_firstkey(db);
+    while (key.dptr != NULL) {
+        val = dbm_fetch(db, key);
+        if (val.dptr != NULL) {
+            printf("%s: %s\n", key.dptr, val.dptr);
+        }
+        key = dbm_nextkey(db);
+    }
+
+    dbm_close(db);
+    return 0;
+}
+
 int main(argc, argv)
     int argc;
     char *argv[];
@@ -341,6 +367,10 @@ int main(argc, argv)
             ts_usage();
 
         return ts_del(dbname, &argv[argi], argc - argi);
+
+    } else if (strcmp(action, "-l") == 0 || strcmp(action, "-L") == 0) {
+        /* List all timestamps: ts [-t db] -l */
+        return ts_list(dbname);
 
     } else if (action[0] == '-') {
         ts_usage();
