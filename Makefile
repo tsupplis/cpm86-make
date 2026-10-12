@@ -22,6 +22,21 @@ prepoch.cmd: prepoch.o util.lib
 	$(LD) -o $@ prepoch.o util.lib $(CPM_LDFLAGS)
 
 # --------------------------------------------------------------------
+# Binary zip
+# --------------------------------------------------------------------
+# Programs, the sample menus/jobs they use (HELLO is the demo program the
+# samples launch), and the soak test. -j: flat archive, no soak/ folder.
+DIST_CMD  = ts.cmd make.cmd
+DIST_DAT  = part1.txt part2.txt
+DIST_MAK  = test.mk
+
+dist: make.zip
+
+make.zip: $(DIST_CMD) $(DIST_DAT) $(DIST_MAK)
+	rm -f make.zip
+	zip -j make.zip $^
+
+# --------------------------------------------------------------------
 # Compile rules
 # --------------------------------------------------------------------
 %.o: %.c
@@ -32,7 +47,7 @@ prepoch.cmd: prepoch.o util.lib
 # Clean
 # --------------------------------------------------------------------
 clean:
-	rm -f *.o *.cmd *.com
+	rm -f *.o make.cmd ts.cmd make.zip
 
 # --------------------------------------------------------------------
 # Test image
