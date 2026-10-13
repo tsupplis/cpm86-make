@@ -24,8 +24,6 @@ prepoch.cmd: prepoch.o util.lib
 # --------------------------------------------------------------------
 # Binary zip
 # --------------------------------------------------------------------
-# Programs, the sample menus/jobs they use (HELLO is the demo program the
-# samples launch), and the soak test. -j: flat archive, no soak/ folder.
 DIST_CMD  = ts.cmd make.cmd
 DIST_DAT  = part1.txt part2.txt
 DIST_MAK  = test.mk
