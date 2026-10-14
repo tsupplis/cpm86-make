@@ -794,10 +794,13 @@ int main(argc, argv)
 
         t = make_find_target(&graph, next_tgt);
         if (!t || t->cmd_count == 0) {
-            /* No commands for this target (e.g. meta/phony target) */
-            long now = epoch_now();
-            if (now == EPOCH_ERR) now = 1L;
-            make_set_timestamp(dbname, next_tgt, now);
+            /* No commands for this target (e.g. meta/phony target).
+               Only record a timestamp for a non-phony target that exists on disk. */
+            if (!(t && t->is_phony) && make_file_exists(next_tgt)) {
+                long now = epoch_now();
+                if (now == EPOCH_ERR) now = 1L;
+                make_set_timestamp(dbname, next_tgt, now);
+            }
             state_save(&state, STATE_DEFAULT_FILE);
 
             /* If there are more targets in stack, re-run make */
