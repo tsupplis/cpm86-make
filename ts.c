@@ -24,17 +24,14 @@ extern int bdos();
 #endif
 
 /* Convert string to lowercase in place */
-static void ts_strlower(s)
-    char *s;
+static void ts_strlower(char *s)
 {
     for (; *s; s++)
         *s = tolower(*s);
 }
 
 /* Simple wildcard pattern matcher (* and ?, case-insensitive) */
-static int ts_match(pat, str)
-    char *pat;
-    char *str;
+static int ts_match(char *pat, char *str)
 {
     while (*pat) {
         if (*pat == '*') {
@@ -59,8 +56,7 @@ static int ts_match(pat, str)
 }
 
 /* Check if string contains wildcard characters */
-static int ts_has_wildcards(s)
-    char *s;
+static int ts_has_wildcards(char *s)
 {
     for (; *s; s++) {
         if (*s == '*' || *s == '?')
@@ -84,8 +80,7 @@ static void ts_usage()
 }
 
 /* Make a datum from a NUL-terminated string */
-static datum ts_str_datum(s)
-    char *s;
+static datum ts_str_datum(char *s)
 {
     datum d;
     d.dptr  = s;
@@ -94,8 +89,7 @@ static datum ts_str_datum(s)
 }
 
 /* Open db read-write, creating .dir/.pag files if absent */
-static DBM *ts_open_rw(name)
-    char *name;
+static DBM *ts_open_rw(char *name)
 {
     DBM *db;
     char path[128];
@@ -130,17 +124,13 @@ static DBM *ts_open_rw(name)
 }
 
 /* Open db read-only, return NULL if missing */
-static DBM *ts_open_ro(name)
-    char *name;
+static DBM *ts_open_ro(char *name)
 {
     return dbm_open(name, O_RDONLY, 0);
 }
 
 /* Query timestamps for one or more patterns */
-static int ts_query(dbname, patterns, count)
-    char *dbname;
-    char *patterns[];
-    int count;
+static int ts_query(char *dbname, char *patterns[], int count)
 {
     DBM *db;
     datum key, val;
@@ -204,10 +194,7 @@ static int ts_query(dbname, patterns, count)
 }
 
 /* Set timestamp for a file */
-static int ts_set(dbname, file, epoch_val)
-    char *dbname;
-    char *file;
-    char *epoch_val;
+static int ts_set(char *dbname, char *file, char *epoch_val)
 {
     DBM *db;
     datum key, val;
@@ -252,10 +239,7 @@ static int ts_set(dbname, file, epoch_val)
 }
 
 /* Delete timestamps matching one or more patterns */
-static int ts_del(dbname, patterns, count)
-    char *dbname;
-    char *patterns[];
-    int count;
+static int ts_del(char *dbname, char *patterns[], int count)
 {
     DBM *db;
     datum key;
@@ -300,8 +284,7 @@ static int ts_del(dbname, patterns, count)
 }
 
 /* List all timestamps recorded in the database */
-static int ts_list(dbname)
-    char *dbname;
+static int ts_list(char *dbname)
 {
     DBM *db;
     datum key, val;
@@ -323,9 +306,7 @@ static int ts_list(dbname)
     return 0;
 }
 
-int main(argc, argv)
-    int argc;
-    char *argv[];
+int main(int argc, char *argv[])
 {
     char *dbname;
     int argi;

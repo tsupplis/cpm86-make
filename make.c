@@ -24,16 +24,14 @@ static int make_verbose = 0;
 static int make_always_build = 0;
 
 /* Convert string to lowercase in place */
-static void make_strlower(s)
-    char *s;
+static void make_strlower(char *s)
 {
     for (; *s; s++)
         *s = tolower(*s);
 }
 
 /* Extract next whitespace-delimited token */
-static char *make_next_token(p)
-    char **p;
+static char *make_next_token(char **p)
 {
     char *start;
     char *s;
@@ -61,8 +59,7 @@ static char *make_next_token(p)
 }
 
 /* Trim leading whitespace */
-static char *make_skip_ws(s)
-    char *s;
+static char *make_skip_ws(char *s)
 {
     while (*s == ' ' || *s == '\t')
         s++;
@@ -70,8 +67,7 @@ static char *make_skip_ws(s)
 }
 
 /* Trim trailing whitespace, newlines, and CP/M EOF (^Z) */
-static void make_trim_trailing(s)
-    char *s;
+static void make_trim_trailing(char *s)
 {
     int len = strlen(s);
     while (len > 0 && (s[len - 1] == '\r' || s[len - 1] == '\n' || s[len - 1] == ' ' || s[len - 1] == '\t' || s[len - 1] == 0x1A)) {
@@ -93,8 +89,7 @@ static void make_usage()
 }
 
 /* Check if a file exists on disk */
-int make_file_exists(filename)
-    char *filename;
+int make_file_exists(char *filename)
 {
     FILE *fp = fopen(filename, "r");
     if (!fp)
@@ -104,9 +99,7 @@ int make_file_exists(filename)
 }
 
 /* Retrieve timestamp for a file from ndbm */
-long make_get_timestamp(dbname, filename)
-    char *dbname;
-    char *filename;
+long make_get_timestamp(char *dbname, char *filename)
 {
     DBM *db;
     datum key, val;
@@ -133,10 +126,7 @@ long make_get_timestamp(dbname, filename)
 }
 
 /* Store timestamp for a file into ndbm */
-static int make_set_timestamp(dbname, filename, ts_val)
-    char *dbname;
-    char *filename;
-    long ts_val;
+static int make_set_timestamp(char *dbname, char *filename, long ts_val)
 {
     DBM *db;
     datum key, val;
@@ -177,9 +167,7 @@ static int make_set_timestamp(dbname, filename, ts_val)
 }
 
 /* Find target by name in the graph */
-static make_target_t *make_find_target(g, name)
-    make_graph_t *g;
-    char *name;
+static make_target_t *make_find_target(make_graph_t *g, char *name)
 {
     char lower_name[MAKE_NAME_LEN];
     int i;
@@ -199,10 +187,7 @@ static make_target_t *make_find_target(g, name)
 }
 
 /* Set or update a variable definition */
-static void make_set_var(g, name, val)
-    make_graph_t *g;
-    char *name;
-    char *val;
+static void make_set_var(make_graph_t *g, char *name, char *val)
 {
     int i;
     char lower_name[MAKE_VAR_NAME_LEN];
@@ -236,9 +221,7 @@ static void make_set_var(g, name, val)
 }
 
 /* Retrieve variable value by name (case-insensitive) */
-static char *make_get_var(g, name)
-    make_graph_t *g;
-    char *name;
+static char *make_get_var(make_graph_t *g, char *name)
 {
     int i;
     char lower_name[MAKE_VAR_NAME_LEN];
@@ -262,12 +245,8 @@ static char *make_get_var(g, name)
 }
 
 /* Expand variables and automatic macros ($@, $<, $*, $^, $(VAR)) */
-static void make_expand_cmd(g, dst, max_len, src, t)
-    make_graph_t *g;
-    char *dst;
-    int max_len;
-    char *src;
-    make_target_t *t;
+static void make_expand_cmd(make_graph_t *g, char *dst, int max_len, char *src, 
+    make_target_t *t)
 {
     char *p = src;
     int d = 0;
@@ -358,10 +337,7 @@ static void make_expand_cmd(g, dst, max_len, src, t)
 }
 
 /* Read logical line with line continuation support (\ at end) */
-static int make_read_logical_line(buf, max_len, fp)
-    char *buf;
-    int max_len;
-    FILE *fp;
+static int make_read_logical_line(char *buf, int max_len, FILE *fp)
 {
     int total_len = 0;
     buf[0] = '\0';
@@ -381,9 +357,7 @@ static int make_read_logical_line(buf, max_len, fp)
 }
 
 /* Parse a makefile into the dependency graph */
-int make_parse(g, filepath)
-    make_graph_t *g;
-    char *filepath;
+int make_parse(make_graph_t *g, char *filepath)
 {
     FILE *fp;
     char line[MAKE_LINE_LEN];
@@ -529,11 +503,7 @@ int make_parse(g, filepath)
 
 
 /* Recursive DAG traversal and build planning */
-static int make_eval_target(g, tgt_name, dbname, st)
-    make_graph_t *g;
-    char *tgt_name;
-    char *dbname;
-    make_state_t *st;
+static int make_eval_target(make_graph_t *g, char *tgt_name, char *dbname, make_state_t *st)
 {
     make_target_t *t;
     int i;
@@ -621,18 +591,12 @@ static int make_eval_target(g, tgt_name, dbname, st)
     return 0;
 }
 
-int make_build_dag(g, target_name, dbname, st)
-    make_graph_t *g;
-    char *target_name;
-    char *dbname;
-    make_state_t *st;
+int make_build_dag(make_graph_t *g, char *target_name, char *dbname, make_state_t *st)
 {
     return make_eval_target(g, target_name, dbname, st);
 }
 
-int main(argc, argv)
-    int argc;
-    char *argv[];
+int main(int argc, char *argv[])
 {
     char *makefile = "makefile";
     char *dbname = "ts";
@@ -683,6 +647,7 @@ int main(argc, argv)
     if (!dry_run) {
         if ((bdos(12, 0) & 0xff) > 0x22) {
             fprintf(stderr, "ERR: Requires CP/M-86 1.1 or compatible (BDOS <= 2.2)\n");
+            sub_exit();
             return 1;
         }
     }
@@ -695,7 +660,9 @@ int main(argc, argv)
 
     /* Parse makefile first */
     if (make_parse(&graph, makefile) < 0) {
-        if (state_exists(STATE_DEFAULT_FILE)) state_delete(STATE_DEFAULT_FILE);
+        if (state_exists(STATE_DEFAULT_FILE)) 
+            state_delete(STATE_DEFAULT_FILE);
+        sub_exit();
         return 1;
     }
 
@@ -712,6 +679,7 @@ int main(argc, argv)
                 if (!phony && !make_file_exists(cur)) {
                     fprintf(stderr, "ERR: Target '%s' not created\n", cur);
                     state_delete(STATE_DEFAULT_FILE);
+                    sub_exit();
                     return 1;
                 }
                 if (make_verbose) {
@@ -730,6 +698,7 @@ int main(argc, argv)
             if (state_count(&state) == 0) {
                 fprintf(stdout, "INF: Build complete.\n");
                 state_delete(STATE_DEFAULT_FILE);
+                sub_exit();
                 return 0;
             }
 
@@ -745,7 +714,9 @@ int main(argc, argv)
             target = graph.first_target;
         } else {
             fprintf(stderr, "ERR: No targets in makefile '%s'\n", makefile);
-            if (is_resumed) state_delete(STATE_DEFAULT_FILE);
+            if (is_resumed) 
+                state_delete(STATE_DEFAULT_FILE);
+            sub_exit();
             return 1;
         }
     } else {
@@ -757,11 +728,13 @@ int main(argc, argv)
         state_init(&state, makefile, dbname, target);
 
         if (make_build_dag(&graph, target, dbname, &state) < 0) {
+            sub_exit();
             return 1;
         }
 
         if (state_count(&state) == 0) {
             fprintf(stdout, "INF: Target '%s' is up to date.\n", target);
+            sub_exit();
             return 0;
         }
     }
@@ -776,6 +749,7 @@ int main(argc, argv)
                 }
             }
         }
+        sub_exit();
         return 0;
     }
 
@@ -789,6 +763,7 @@ int main(argc, argv)
         if (state_pop(&state, next_tgt, sizeof(next_tgt)) < 0) {
             fprintf(stdout, "INF: Build complete.\n");
             state_delete(STATE_DEFAULT_FILE);
+            sub_exit();
             return 0;
         }
 
@@ -806,13 +781,14 @@ int main(argc, argv)
             /* If there are more targets in stack, re-run make */
             if (state_count(&state) > 0) {
                 sprintf(resume_cmd, "make -f %s -t %s %s%s", makefile, dbname, make_verbose ? "-v " : "", target);
-                sub_open(SUB_CREATE);
+                sub_open(SUB_APPEND);
                 sub_append(resume_cmd);
                 sub_close();
                 sub_exit();
             } else {
                 fprintf(stdout, "INF: Build complete.\n");
                 state_delete(STATE_DEFAULT_FILE);
+                sub_exit();
                 return 0;
             }
         }
@@ -823,6 +799,8 @@ int main(argc, argv)
 
         /* Build $$$.SUB:
            CCP executes records LIFO (last appended first).
+           Pushed on top of any existing $$$.SUB (SUB_APPEND), so a pending
+           batch is preserved and resumes after this step.
            1. First push resume make command (will run last in this step)
            2. Push recipe commands in reverse order (cmd[N-1] down to cmd[0]) */
         if (make_verbose) {
@@ -832,7 +810,7 @@ int main(argc, argv)
             }
         }
 
-        sub_open(SUB_CREATE);
+        sub_open(SUB_APPEND);
 
         sprintf(resume_cmd, "make -f %s -t %s %s%s", makefile, dbname, make_verbose ? "-v " : "", target);
         sub_append(resume_cmd);
@@ -842,8 +820,9 @@ int main(argc, argv)
         }
 
         sub_close();
-        sub_exit();
     }
-
+    /* Always leave through sub_exit: warm boot so the CCP continues with
+       $$$.SUB (pending recipe commands or the caller's submit). */
+    sub_exit();
     return 0;
 }

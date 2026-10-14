@@ -12,8 +12,7 @@ extern int unlink();
 #endif
 
 /* Trim trailing CR, LF, and whitespace */
-static void state_trim(s)
-    char *s;
+static void state_trim(char *s)
 {
     int len = strlen(s);
     while (len > 0 && (s[len - 1] == '\r' || s[len - 1] == '\n' || s[len - 1] == ' ' || s[len - 1] == '\t')) {
@@ -21,11 +20,7 @@ static void state_trim(s)
     }
 }
 
-int state_init(st, makefile, dbname, main_target)
-    make_state_t *st;
-    char *makefile;
-    char *dbname;
-    char *main_target;
+int state_init(make_state_t *st, char *makefile, char *dbname, char *main_target)
 {
     if (!st)
         return -1;
@@ -51,9 +46,7 @@ int state_init(st, makefile, dbname, main_target)
     return 0;
 }
 
-int state_push(st, target)
-    make_state_t *st;
-    char *target;
+int state_push(make_state_t *st, char *target)
 {
     if (!st || !target || st->target_count >= STATE_MAX_TARGETS)
         return -1;
@@ -64,10 +57,8 @@ int state_push(st, target)
     return 0;
 }
 
-int state_pop(st, target_buf, buf_size)
-    make_state_t *st;
-    char *target_buf;
-    int buf_size;
+int state_pop(make_state_t *st, char *target_buf,
+    int buf_size)
 {
     int i;
 
@@ -89,25 +80,21 @@ int state_pop(st, target_buf, buf_size)
     return 0;
 }
 
-char *state_peek(st)
-    make_state_t *st;
+char *state_peek(make_state_t *st)
 {
     if (!st || st->target_count <= 0)
         return NULL;
     return st->targets[0];
 }
 
-int state_count(st)
-    make_state_t *st;
+int state_count(make_state_t *st)
 {
     if (!st)
         return 0;
     return st->target_count;
 }
 
-void state_set_current(st, target)
-    make_state_t *st;
-    char *target;
+void state_set_current(make_state_t *st, char *target)
 {
     if (!st)
         return;
@@ -119,17 +106,14 @@ void state_set_current(st, target)
     }
 }
 
-char *state_get_current(st)
-    make_state_t *st;
+char *state_get_current(make_state_t *st)
 {
     if (!st)
         return "";
     return st->current_target;
 }
 
-int state_save(st, filepath)
-    make_state_t *st;
-    char *filepath;
+int state_save(make_state_t *st, char *filepath)
 {
     FILE *fp;
     char *path;
@@ -157,9 +141,7 @@ int state_save(st, filepath)
     return 0;
 }
 
-int state_load(st, filepath)
-    make_state_t *st;
-    char *filepath;
+int state_load(make_state_t *st, char *filepath)
 {
     FILE *fp;
     char *path;
@@ -201,8 +183,7 @@ int state_load(st, filepath)
     return 0;
 }
 
-int state_exists(filepath)
-    char *filepath;
+int state_exists(char *filepath)
 {
     FILE *fp;
     char *path;
@@ -215,8 +196,7 @@ int state_exists(filepath)
     return 1;
 }
 
-int state_delete(filepath)
-    char *filepath;
+int state_delete(char *filepath)
 {
     char *path;
 
