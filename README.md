@@ -84,14 +84,14 @@ PIP=a:pip
 
 all: bundle.out
 
-bundle.out: part1.out part2.out
+bundle.out: part1.out \
+	part2.out
 	$(PIP) $@=part1.out,part2.out
 
 part1.out: part1.txt
 	$(PIP) $@=$<
 
-part2.out: part2.txt \
-	part2.inc
+part2.out: part2.txt
 	$(PIP) $@=$*
 
 clean:
