@@ -14,7 +14,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include "ndbm.h"
-#include "epoch.h"
+#include "util.h"
 
 #define TS_MAX_KEYS 128
 #define TS_KEY_LEN  64
@@ -207,11 +207,7 @@ static int ts_set(char *dbname, char *file, char *epoch_val)
         strncpy(buf, epoch_val, sizeof(buf) - 1);
         buf[sizeof(buf) - 1] = '\0';
     } else {
-        /* Retrieve system epoch, guard BDOS <= 2.2 */
-        if ((bdos(12, 0) & 0xff) > 0x22) {
-            fprintf(stderr, "ERR: Requires CP/M-86 1.1 or compatible (BDOS <= 2.2)\n");
-            return 1;
-        }
+
         now = epoch_now();
         if (now == EPOCH_ERR) {
             fprintf(stderr, "ERR: Cannot retrieve system date/time\n");

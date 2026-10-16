@@ -9,7 +9,7 @@ Laconic build automation, state management, and timestamp tracking for CP/M-86 1
 CP/M-86 1.1 (BDOS 2.2) lacks file timestamps, sub-process execution (`fork`/`exec`), and process exit codes. 
 `make` and `ts` resolve this through persistent indexed timestamps (`ndbm`), disk-backed state management (`make.sta`), and CCP batching (`$$$.SUB`).
 
-This make will be enhanced to be forward compatible with BDOS >= 3.0 at a later stage.
+CCP/M-86 and above are now supported. For process management, p_cli is now use without a submit loop. so commands are executed iteratively. write now process exit codes are not yet scrutinized and file timestamp is not assume. it will come in subsequent releases
 
 ![make running on CP/M-86](images/make.png)
 
@@ -155,14 +155,14 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A[make invocation] --> B{BDOS <= 2.2?}
-    B -->|No| C[ERR: Exit]
-    B -->|Yes| D[Parse makefile -f file]
+    A[make invocation] --> D[Parse makefile -f file]
     D --> E[Read ts.db Timestamps -t db]
     E --> F[Build Dependency DAG & Stack]
     F --> G{Mode?}
     G -->|Dry Run -n| H[INF: Print Actions & Exit - No Epoch / No SUB]
-    G -->|Build Mode| I[Save make.sta on Disk]
+    G -->|Build Mode| B[BDOS 2.2]
+    B -->|Yes| I[Save make.sta on Disk]
+    B -->|No| S[Execute Iteratively Tool Commands for first incomplete target]
     I --> J[Generate $$$.SUB Queue]
     J --> K[Warm Boot to CCP]
     K --> L[CCP Runs Tool Commands]
@@ -171,6 +171,11 @@ flowchart TD
     N --> O{Target Created?}
     O -->|No| P[ERR: Target not created]
     O -->|Yes| Q[Pop Target from make.sta & Continue]
+    S --> T{Target Created?}
+    T -->|No| R[ERR: Target not created]
+    T -->|Yes| U[Next Target]
+    U -->|None| V[We are done!]
+    U -->|Some| S
 ```
 
 ### Dependency Decision Logic

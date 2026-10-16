@@ -19,19 +19,6 @@ typedef struct _make_state_t {
     char targets[STATE_MAX_TARGETS][STATE_NAME_LEN];
 } make_state_t;
 
-#ifndef __STDC__
-int   state_init();
-int   state_push();
-int   state_pop();
-char *state_peek();
-int   state_count();
-void  state_set_current();
-char *state_get_current();
-int   state_save();
-int   state_load();
-int   state_exists();
-int   state_delete();
-#else
 int   state_init(make_state_t *st, char *makefile, char *dbname, char *main_target);
 int   state_push(make_state_t *st, char *target);
 int   state_pop(make_state_t *st, char *target_buf, int buf_size);
@@ -43,6 +30,5 @@ int   state_save(make_state_t *st, char *filepath);
 int   state_load(make_state_t *st, char *filepath);
 int   state_exists(char *filepath);
 int   state_delete(char *filepath);
-#endif
 
 #endif

@@ -12,22 +12,32 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include "make.h"
-#include "epoch.h"
-#include "sub.h"
+#include "util.h"
 
 #ifndef __STDC__
 extern int bdos();
 extern int unlink();
 #endif
 
-static int make_verbose = 0;
-static int make_always_build = 0;
+int make_verbose = 0;
+int make_always_build = 0;
+
+int is_make_verbose() {
+    return make_verbose;
+}
 
 /* Convert string to lowercase in place */
-static void make_strlower(char *s)
+void make_strlower(char *s)
 {
     for (; *s; s++)
         *s = tolower(*s);
+}
+
+/* Convert string to uppercase in place */
+void make_strupper(char *s)
+{
+    for (; *s; s++)
+        *s = toupper(*s);
 }
 
 /* Extract next whitespace-delimited token */
@@ -126,7 +136,7 @@ long make_get_timestamp(char *dbname, char *filename)
 }
 
 /* Store timestamp for a file into ndbm */
-static int make_set_timestamp(char *dbname, char *filename, long ts_val)
+int make_set_timestamp(char *dbname, char *filename, long ts_val)
 {
     DBM *db;
     datum key, val;
@@ -167,7 +177,7 @@ static int make_set_timestamp(char *dbname, char *filename, long ts_val)
 }
 
 /* Find target by name in the graph */
-static make_target_t *make_find_target(make_graph_t *g, char *name)
+make_target_t *make_find_target(make_graph_t *g, char *name)
 {
     char lower_name[MAKE_NAME_LEN];
     int i;
@@ -571,7 +581,8 @@ static int make_eval_target(make_graph_t *g, char *tgt_name, char *dbname, make_
     if (make_verbose) {
         if (t->needed) {
             char reason[64];
-            if (!exists) strcpy(reason, "file missing");
+            if (t->is_phony) strcpy(reason, "prerequisite newer or rebuilt");
+            else if (!exists) strcpy(reason, "file missing");
             else if (target_ts == 0L) strcpy(reason, "no timestamp in ts.db");
             else if (dep_needed) strcpy(reason, "prerequisite newer or rebuilt");
             else strcpy(reason, "out of date");
@@ -596,8 +607,11 @@ int make_build_dag(make_graph_t *g, char *target_name, char *dbname, make_state_
     return make_eval_target(g, target_name, dbname, st);
 }
 
+
 int main(int argc, char *argv[])
 {
+    make_graph_t graph;
+    make_state_t state;
     char *makefile = "makefile";
     char *dbname = "ts";
     char *target = NULL;
@@ -605,9 +619,11 @@ int main(int argc, char *argv[])
     int is_resumed = 0;
     int reset_state = 0;
     int argi = 1;
-    make_graph_t graph;
-    make_state_t state;
     int i, k;
+    int use_exec = 0;
+
+    use_exec = (bdos(12, 0) & 0xff) > 0x22;
+
 
     /* Parse command line options */
     while (argi < argc) {
@@ -643,16 +659,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    /* Guard: BDOS <= 2.2 when running in build mode */
-    if (!dry_run) {
-        if ((bdos(12, 0) & 0xff) > 0x22) {
-            fprintf(stderr, "ERR: Requires CP/M-86 1.1 or compatible (BDOS <= 2.2)\n");
-            sub_exit();
-            return 1;
-        }
-    }
-
-    /* Reset state if requested */
+     /* Reset state if requested */
     if (reset_state) {
         if (state_exists(STATE_DEFAULT_FILE))
             state_delete(STATE_DEFAULT_FILE);
@@ -662,12 +669,47 @@ int main(int argc, char *argv[])
     if (make_parse(&graph, makefile) < 0) {
         if (state_exists(STATE_DEFAULT_FILE)) 
             state_delete(STATE_DEFAULT_FILE);
-        sub_exit();
         return 1;
     }
 
+        /* Dry Run (-n) Mode */
+    if (dry_run) {
+        if (target == NULL) {
+            if (graph.first_target[0] != '\0') {
+                target = graph.first_target;
+            } else {
+                fprintf(stderr, "ERR: No targets in makefile '%s'\n", makefile);
+                if (is_resumed) 
+                    state_delete(STATE_DEFAULT_FILE);
+                return 1;
+            }
+        } else {
+            make_strlower(target);
+        }
+        /* Initialize build state and construct dependency DAG */
+        state_init(&state, makefile, dbname, target);
+
+        if (make_build_dag(&graph, target, dbname, &state) < 0) {
+            return 1;
+        }
+
+        if (state_count(&state) == 0) {
+            fprintf(stdout, "INF: Target '%s' is up to date.\n", target);
+            return 0;
+        }
+        for (i = 0; i < state.target_count; i++) {
+            make_target_t *t = make_find_target(&graph, state.targets[i]);
+            if (t) {
+                for (k = 0; k < t->cmd_count; k++) {
+                    printf("%s\n", t->cmds[k].text);
+                }
+            }
+        }
+        return 0;
+    }
+
     /* Check if resuming an active build state */
-    if (!dry_run && state_exists(STATE_DEFAULT_FILE)) {
+    if (state_exists(STATE_DEFAULT_FILE)) {
         char *cur;
         if (state_load(&state, STATE_DEFAULT_FILE) == 0) {
             is_resumed = 1;
@@ -679,7 +721,6 @@ int main(int argc, char *argv[])
                 if (!phony && !make_file_exists(cur)) {
                     fprintf(stderr, "ERR: Target '%s' not created\n", cur);
                     state_delete(STATE_DEFAULT_FILE);
-                    sub_exit();
                     return 1;
                 }
                 if (make_verbose) {
@@ -688,7 +729,9 @@ int main(int argc, char *argv[])
                 /* Record updated timestamp if not phony */
                 if (!phony) {
                     long now = epoch_now();
-                    if (now == EPOCH_ERR) now = 1L;
+                    if (now == EPOCH_ERR) {
+                        now = 1L;
+                    }
                     make_set_timestamp(state.dbname, cur, now);
                 }
                 state_set_current(&state, NULL);
@@ -698,7 +741,6 @@ int main(int argc, char *argv[])
             if (state_count(&state) == 0) {
                 fprintf(stdout, "INF: Build complete.\n");
                 state_delete(STATE_DEFAULT_FILE);
-                sub_exit();
                 return 0;
             }
 
@@ -716,7 +758,6 @@ int main(int argc, char *argv[])
             fprintf(stderr, "ERR: No targets in makefile '%s'\n", makefile);
             if (is_resumed) 
                 state_delete(STATE_DEFAULT_FILE);
-            sub_exit();
             return 1;
         }
     } else {
@@ -728,101 +769,33 @@ int main(int argc, char *argv[])
         state_init(&state, makefile, dbname, target);
 
         if (make_build_dag(&graph, target, dbname, &state) < 0) {
-            sub_exit();
             return 1;
         }
 
         if (state_count(&state) == 0) {
             fprintf(stdout, "INF: Target '%s' is up to date.\n", target);
-            sub_exit();
             return 0;
         }
     }
 
-    /* Dry Run (-n) Mode */
-    if (dry_run) {
-        for (i = 0; i < state.target_count; i++) {
-            make_target_t *t = make_find_target(&graph, state.targets[i]);
-            if (t) {
-                for (k = 0; k < t->cmd_count; k++) {
-                    printf("%s\n", t->cmds[k].text);
-                }
-            }
+    if (use_exec) {
+        int rc=exec_process(&state, &graph, makefile, dbname, target);
+        if(rc) {
+            fprintf(stdout, "ERR: Target '%s' failed to build.\n", target);
+            return 1;
         }
+        if (state_count(&state) == 0) {
+            fprintf(stdout, "INF: Target '%s' is up to date.\n", target);
+            return 0;
+        }
+    } else {
+        if (sub_process(&state, &graph, makefile, dbname, target)) {
+            fprintf(stdout, "ERR: Target '%s' failed to build.\n", target);
+            return 1;
+        }
+        /* Always leave through sub_exit: warm boot so the CCP continues with
+        $$$.SUB (pending recipe commands or the caller's submit). */
         sub_exit();
         return 0;
     }
-
-    /* Batch Execution via $$$.SUB */
-    {
-        char next_tgt[STATE_NAME_LEN];
-        make_target_t *t;
-        char resume_cmd[128];
-
-        /* Pop the first target to build */
-        if (state_pop(&state, next_tgt, sizeof(next_tgt)) < 0) {
-            fprintf(stdout, "INF: Build complete.\n");
-            state_delete(STATE_DEFAULT_FILE);
-            sub_exit();
-            return 0;
-        }
-
-        t = make_find_target(&graph, next_tgt);
-        if (!t || t->cmd_count == 0) {
-            /* No commands for this target (e.g. meta/phony target).
-               Only record a timestamp for a non-phony target that exists on disk. */
-            if (!(t && t->is_phony) && make_file_exists(next_tgt)) {
-                long now = epoch_now();
-                if (now == EPOCH_ERR) now = 1L;
-                make_set_timestamp(dbname, next_tgt, now);
-            }
-            state_save(&state, STATE_DEFAULT_FILE);
-
-            /* If there are more targets in stack, re-run make */
-            if (state_count(&state) > 0) {
-                sprintf(resume_cmd, "make -f %s -t %s %s%s", makefile, dbname, make_verbose ? "-v " : "", target);
-                sub_open(SUB_APPEND);
-                sub_append(resume_cmd);
-                sub_close();
-                sub_exit();
-            } else {
-                fprintf(stdout, "INF: Build complete.\n");
-                state_delete(STATE_DEFAULT_FILE);
-                sub_exit();
-                return 0;
-            }
-        }
-
-        /* Save state with current target being built */
-        state_set_current(&state, next_tgt);
-        state_save(&state, STATE_DEFAULT_FILE);
-
-        /* Build $$$.SUB:
-           CCP executes records LIFO (last appended first).
-           Pushed on top of any existing $$$.SUB (SUB_APPEND), so a pending
-           batch is preserved and resumes after this step.
-           1. First push resume make command (will run last in this step)
-           2. Push recipe commands in reverse order (cmd[N-1] down to cmd[0]) */
-        if (make_verbose) {
-            printf("INF: Batching target '%s' into $$$.SUB (%d commands)\n", next_tgt, t->cmd_count);
-            for (k = 0; k < t->cmd_count; k++) {
-                printf("INF:   + %s\n", t->cmds[k].text);
-            }
-        }
-
-        sub_open(SUB_APPEND);
-
-        sprintf(resume_cmd, "make -f %s -t %s %s%s", makefile, dbname, make_verbose ? "-v " : "", target);
-        sub_append(resume_cmd);
-
-        for (k = t->cmd_count - 1; k >= 0; k--) {
-            sub_append(t->cmds[k].text);
-        }
-
-        sub_close();
-    }
-    /* Always leave through sub_exit: warm boot so the CCP continues with
-       $$$.SUB (pending recipe commands or the caller's submit). */
-    sub_exit();
-    return 0;
 }

@@ -3,7 +3,7 @@
 
 PIP=a:pip
 
-all: bundle.out
+all: bundle.out missing.out
 
 bundle.out: part1.out part2.out
 	$(PIP) $@=part1.out,part2.out
@@ -13,6 +13,9 @@ part1.out: part1.txt
 
 part2.out: part2.txt
 	$(PIP) $@=$<
+
+missing.out:
+	a:show
 
 clean:
 	era *.out

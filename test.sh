@@ -31,10 +31,10 @@ run() {
 }
 
 cleanup() {
-	rm -f test_ts.dir test_ts.pag make.sta $$$.SUB
-	rm -f out.tmp err.tmp test_*.mk test_*.txt test_*.inc
-	rm -f test_main.c test_util.c test_a.c test_b.c test_comm.h
-	rm -f test_main.o test_util.o test_app.cmd test_prog.cmd
+	rm -f testts.dir testts.pag make.sta $$$.SUB
+	rm -f out.tmp err.tmp test*.mk test*.txt test*.inc
+	rm -f testmain.c testutil.c testa.c testb.c testcomm.h
+	rm -f testmain.o testutil.o testapp.cmd testprog.cmd
 }
 
 trap cleanup EXIT INT TERM
@@ -54,57 +54,57 @@ echo "== ts.cmd: basic operations =="
 # ==================================================================== #
 
 # 1. Query unrecorded file returns 0
-run ts.cmd -t test_ts test_main.c
+run ts.cmd -t testts testmain.c
 if [ "$out" = "0" ]; then
 	pass "ts.cmd" "query unrecorded file returns 0"
 else
-	blame "ts.cmd" "query unrecorded file returns 0" "-t test_ts test_main.c" "0" "$out"
+	blame "ts.cmd" "query unrecorded file returns 0" "-t testts testmain.c" "0" "$out"
 fi
 
 # 2. Set simulated timestamp
-run ts.cmd -t test_ts -s test_main.c 1000
-run ts.cmd -t test_ts test_main.c
+run ts.cmd -t testts -s testmain.c 1000
+run ts.cmd -t testts testmain.c
 if [ "$out" = "1000" ]; then
 	pass "ts.cmd" "set and query simulated timestamp"
 else
-	blame "ts.cmd" "set and query simulated timestamp" "-t test_ts -s test_main.c 1000" "1000" "$out"
+	blame "ts.cmd" "set and query simulated timestamp" "-t testts -s testmain.c 1000" "1000" "$out"
 fi
 
 # 3. Multiple entries and wildcard query
-run ts.cmd -t test_ts -s test_util.c 2000
-run ts.cmd -t test_ts 'test_*.c'
-if printf '%s\n' "$out" | grep -qiF "test_main.c: 1000" && printf '%s\n' "$out" | grep -qiF "test_util.c: 2000"; then
+run ts.cmd -t testts -s testutil.c 2000
+run ts.cmd -t testts 'test*.c'
+if printf '%s\n' "$out" | grep -qiF "testmain.c: 1000" && printf '%s\n' "$out" | grep -qiF "testutil.c: 2000"; then
 	pass "ts.cmd" "wildcard query matches multiple keys"
 else
-	blame "ts.cmd" "wildcard query matches multiple keys" "-t test_ts 'test_*.c'" "test_main.c: 1000 and test_util.c: 2000" "$out"
+	blame "ts.cmd" "wildcard query matches multiple keys" "-t testts 'test*.c'" "testmain.c: 1000 and testutil.c: 2000" "$out"
 fi
 
 # 4. Wildcard deletion
-run ts.cmd -t test_ts -d test_m*.c
-run ts.cmd -t test_ts test_main.c
+run ts.cmd -t testts -d testm*.c
+run ts.cmd -t testts testmain.c
 if [ "$out" = "0" ]; then
 	pass "ts.cmd" "wildcard delete removes matched key"
 else
-	blame "ts.cmd" "wildcard delete removes matched key" "-t test_ts -d test_m*.c" "0" "$out"
+	blame "ts.cmd" "wildcard delete removes matched key" "-t testts -d testm*.c" "0" "$out"
 fi
 
 # 5. Single key deletion
-run ts.cmd -t test_ts -d test_util.c
-run ts.cmd -t test_ts test_util.c
+run ts.cmd -t testts -d testutil.c
+run ts.cmd -t testts testutil.c
 if [ "$out" = "0" ]; then
 	pass "ts.cmd" "exact delete removes single key"
 else
-	blame "ts.cmd" "exact delete removes single key" "-t test_ts -d test_util.c" "0" "$out"
+	blame "ts.cmd" "exact delete removes single key" "-t testts -d testutil.c" "0" "$out"
 fi
 
 # 5b. List all records (-l)
-run ts.cmd -t test_ts -s test_list1.c 500
-run ts.cmd -t test_ts -s test_list2.c 600
-run ts.cmd -t test_ts -l
-if printf '%s\n' "$out" | grep -qiF "test_list1.c: 500" && printf '%s\n' "$out" | grep -qiF "test_list2.c: 600"; then
+run ts.cmd -t testts -s testlist1.c 500
+run ts.cmd -t testts -s testlist2.c 600
+run ts.cmd -t testts -l
+if printf '%s\n' "$out" | grep -qiF "testlist1.c: 500" && printf '%s\n' "$out" | grep -qiF "testlist2.c: 600"; then
 	pass "ts.cmd" "-l lists all records"
 else
-	blame "ts.cmd" "-l lists all records" "-t test_ts -l" "test_list1.c: 500 and test_list2.c: 600" "$out"
+	blame "ts.cmd" "-l lists all records" "-t testts -l" "testlist1.c: 500 and testlist2.c: 600" "$out"
 fi
 
 
@@ -113,137 +113,137 @@ echo "== make.cmd: dependency DAG & -n dry run =="
 # ==================================================================== #
 
 # Create test sources
-echo "int main(){return 0;}" > test_main.c
-echo "int util(){return 0;}" > test_util.c
+echo "int main(){return 0;}" > testmain.c
+echo "int util(){return 0;}" > testutil.c
 
 # Create simple makefile
-cat << 'EOF' > test_simple.mk
-test_app.cmd: test_main.o test_util.o
-	link -o test_app.cmd test_main.o test_util.o
+cat << 'EOF' > testsimpl.mk
+testapp.cmd: testmain.o testutil.o
+	link -o testapp.cmd testmain.o testutil.o
 
-test_main.o: test_main.c
-	cc -o test_main.o test_main.c
+testmain.o: testmain.c
+	cc -o testmain.o testmain.c
 
-test_util.o: test_util.c
-	cc -o test_util.o test_util.c
+testutil.o: testutil.c
+	cc -o testutil.o testutil.c
 EOF
 
 # 6. Dry run on unbuilt project (all commands planned in leaf-first order)
-run make.cmd -f test_simple.mk -t test_ts -n test_app.cmd
-expected_cmds="cc -o test_main.o test_main.c
-cc -o test_util.o test_util.c
-link -o test_app.cmd test_main.o test_util.o"
+run make.cmd -f testsimpl.mk -t testts -n testapp.cmd
+expected_cmds="cc -o testmain.o testmain.c
+cc -o testutil.o testutil.c
+link -o testapp.cmd testmain.o testutil.o"
 
 if [ "$out" = "$expected_cmds" ]; then
 	pass "make.cmd" "-n dry run plans actions leaf-first"
 else
-	blame "make.cmd" "-n dry run plans actions leaf-first" "-f test_simple.mk -n test_app.cmd" "$expected_cmds" "$out"
+	blame "make.cmd" "-n dry run plans actions leaf-first" "-f testsimpl.mk -n testapp.cmd" "$expected_cmds" "$out"
 fi
 
 # 7. Up-to-date detection
 # Stamp all targets and create files on disk
-touch test_main.o test_util.o test_app.cmd
-run ts.cmd -t test_ts -s test_main.c 1000
-run ts.cmd -t test_ts -s test_util.c 1000
-run ts.cmd -t test_ts -s test_main.o 2000
-run ts.cmd -t test_ts -s test_util.o 2000
-run ts.cmd -t test_ts -s test_app.cmd 3000
+touch testmain.o testutil.o testapp.cmd
+run ts.cmd -t testts -s testmain.c 1000
+run ts.cmd -t testts -s testutil.c 1000
+run ts.cmd -t testts -s testmain.o 2000
+run ts.cmd -t testts -s testutil.o 2000
+run ts.cmd -t testts -s testapp.cmd 3000
 
-run make.cmd -f test_simple.mk -t test_ts -n test_app.cmd
+run make.cmd -f testsimpl.mk -t testts -n testapp.cmd
 if printf '%s\n' "$out" | grep -qiF "up to date"; then
 	pass "make.cmd" "recognizes up to date target"
 else
-	blame "make.cmd" "recognizes up to date target" "-f test_simple.mk -t test_ts -n test_app.cmd" "INF: Target 'test_app.cmd' is up to date." "$out"
+	blame "make.cmd" "recognizes up to date target" "-f testsimpl.mk -t testts -n testapp.cmd" "INF: Target 'testapp.cmd' is up to date." "$out"
 fi
 
 # 8. Rebuild triggered when single source is updated
-run ts.cmd -t test_ts -s test_main.c 4000
-run make.cmd -f test_simple.mk -t test_ts -n test_app.cmd
-expected_rebuild="cc -o test_main.o test_main.c
-link -o test_app.cmd test_main.o test_util.o"
+run ts.cmd -t testts -s testmain.c 4000
+run make.cmd -f testsimpl.mk -t testts -n testapp.cmd
+expected_rebuild="cc -o testmain.o testmain.c
+link -o testapp.cmd testmain.o testutil.o"
 
 if [ "$out" = "$expected_rebuild" ]; then
 	pass "make.cmd" "partial rebuild triggered when single source is newer"
 else
-	blame "make.cmd" "partial rebuild triggered when single source is newer" "-f test_simple.mk -t test_ts -n test_app.cmd" "$expected_rebuild" "$out"
+	blame "make.cmd" "partial rebuild triggered when single source is newer" "-f testsimpl.mk -t testts -n testapp.cmd" "$expected_rebuild" "$out"
 fi
 
 
 # 8b. Unconditional rebuild (-a)
-run make.cmd -f test_simple.mk -t test_ts -n -a test_app.cmd
+run make.cmd -f testsimpl.mk -t testts -n -a testapp.cmd
 if [ "$out" = "$expected_cmds" ]; then
 	pass "make.cmd" "-a forces unconditional rebuild"
 else
-	blame "make.cmd" "-a forces unconditional rebuild" "-f test_simple.mk -t test_ts -n -a test_app.cmd" "$expected_cmds" "$out"
+	blame "make.cmd" "-a forces unconditional rebuild" "-f testsimpl.mk -t testts -n -a testapp.cmd" "$expected_cmds" "$out"
 fi
 
 # ==================================================================== #
 echo "== make.cmd: defines and automatic variables =="
 # ==================================================================== #
 
-cat << 'EOF' > test_vars.mk
+cat << 'EOF' > testvars.mk
 PIP=a:pip
 
 all: bundle.out
 
-bundle.out: test_p1.out test_p2.out
-	$(PIP) $@=test_p1.out,test_p2.out
+bundle.out: testp1.out testp2.out
+	$(PIP) $@=testp1.out,testp2.out
 
-test_p1.out: test_p1.txt
+testp1.out: testp1.txt
 	$(PIP) $@=$<
 
-test_p2.out: test_p2.txt \
-	test_p2.inc
+testp2.out: testp2.txt \
+	testp2.inc
 	$(PIP) $@=$*
 EOF
 
-echo "p1" > test_p1.txt
-echo "p2" > test_p2.txt
-echo "inc" > test_p2.inc
+echo "p1" > testp1.txt
+echo "p2" > testp2.txt
+echo "inc" > testp2.inc
 
-run make.cmd -f test_vars.mk -t test_ts -n
-expected_vars="a:pip test_p1.out=test_p1.txt
-a:pip test_p2.out=test_p2.txt test_p2.inc
-a:pip bundle.out=test_p1.out,test_p2.out"
+run make.cmd -f testvars.mk -t testts -n
+expected_vars="a:pip testp1.out=testp1.txt
+a:pip testp2.out=testp2.txt testp2.inc
+a:pip bundle.out=testp1.out,testp2.out"
 
 if [ "$out" = "$expected_vars" ]; then
 	pass "make.cmd" "expands variables, automatic macros and line continuations"
 else
-	blame "make.cmd" "expands variables, automatic macros and line continuations" "-f test_vars.mk -n" "$expected_vars" "$out"
+	blame "make.cmd" "expands variables, automatic macros and line continuations" "-f testvars.mk -n" "$expected_vars" "$out"
 fi
 
-rm -f test_p1.txt test_p2.txt test_p2.inc
+rm -f testp1.txt testp2.txt testp2.inc
 
 # ==================================================================== #
-echo "== make.cmd: diamond dependencies =="
+echo "== make.cmd: dmnd dependencies =="
 # ==================================================================== #
 
-echo "int a(){return 0;}" > test_a.c
-echo "int b(){return 0;}" > test_b.c
-echo "#define COMMON 1"   > test_comm.h
+echo "int a(){return 0;}" > testa.c
+echo "int b(){return 0;}" > testb.c
+echo "#define COMMON 1"   > testcomm.h
 
-cat << 'EOF' > test_diamond.mk
-all: test_prog.cmd
+cat << 'EOF' > testdmnd.mk
+all: testprog.cmd
 
-test_prog.cmd: test_a.o test_b.o
-	link test_prog.cmd test_a.o test_b.o
+testprog.cmd: testa.o testb.o
+	link testprog.cmd testa.o testb.o
 
-test_a.o: test_a.c test_comm.h
-	cc test_a.c
+testa.o: testa.c testcomm.h
+	cc testa.c
 
-test_b.o: test_b.c test_comm.h
-	cc test_b.c
+testb.o: testb.c testcomm.h
+	cc testb.c
 EOF
 
-run make.cmd -f test_diamond.mk -t test_ts -n
-expected_diamond="cc test_a.c
-cc test_b.c
-link test_prog.cmd test_a.o test_b.o"
+run make.cmd -f testdmnd.mk -t testts -n
+expected_dmnd="cc testa.c
+cc testb.c
+link testprog.cmd testa.o testb.o"
 
-if [ "$out" = "$expected_diamond" ]; then
-	pass "make.cmd" "diamond DAG evaluates correctly"
+if [ "$out" = "$expected_dmnd" ]; then
+	pass "make.cmd" "dmnd DAG evaluates correctly"
 else
-	blame "make.cmd" "diamond DAG evaluates correctly" "-f test_diamond.mk -n" "$expected_diamond" "$out"
+	blame "make.cmd" "dmnd DAG evaluates correctly" "-f testdmnd.mk -n" "$expected_dmnd" "$out"
 fi
 
 
@@ -252,31 +252,31 @@ echo "== make.cmd: error cases =="
 # ==================================================================== #
 
 # 9. Missing prerequisite with no rule
-cat << 'EOF' > test_missing.mk
+cat << 'EOF' > testmiss.mk
 app: missing.c
 	cc missing.c
 EOF
 
-run make.cmd -f test_missing.mk -n app
+run make.cmd -f testmiss.mk -n app
 if printf '%s\n' "$diag" | grep -qiF "No rule to make target"; then
 	pass "make.cmd" "reports error on missing source file"
 else
-	blame "make.cmd" "reports error on missing source file" "-f test_missing.mk -n app" "ERR: No rule to make target 'missing.c'" "$diag"
+	blame "make.cmd" "reports error on missing source file" "-f testmiss.mk -n app" "ERR: No rule to make target 'missing.c'" "$diag"
 fi
 
 # 10. Circular dependency detection
-cat << 'EOF' > test_cycle.mk
+cat << 'EOF' > testcycl.mk
 a: b
 	cc a
 b: a
 	cc b
 EOF
 
-run make.cmd -f test_cycle.mk -n a
+run make.cmd -f testcycl.mk -n a
 if printf '%s\n' "$diag" | grep -qiF "Circular dependency"; then
 	pass "make.cmd" "detects circular dependency cycle"
 else
-	blame "make.cmd" "detects circular dependency cycle" "-f test_cycle.mk -n a" "ERR: Circular dependency detected for 'a'" "$diag"
+	blame "make.cmd" "detects circular dependency cycle" "-f testcycl.mk -n a" "ERR: Circular dependency detected for 'a'" "$diag"
 fi
 
 # ==================================================================== #

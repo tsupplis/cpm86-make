@@ -47,16 +47,15 @@ typedef struct _make_graph_t {
     make_var_t vars[MAKE_MAX_VARS];
 } make_graph_t;
 
-#ifndef __STDC__
-int  make_parse();
-int  make_build_dag();
-int  make_file_exists();
-long make_get_timestamp();
-#else
 int  make_parse(make_graph_t *g, char *filepath);
 int  make_build_dag(make_graph_t *g, char *target_name, char *dbname, make_state_t *st);
 int  make_file_exists(char *filename);
+void make_strlower(char *s);
+void make_strupper(char *s);
 long make_get_timestamp(char *dbname, char *filename);
-#endif
-
+int make_set_timestamp(char *dbname, char *filename, long ts_val);
+make_target_t *make_find_target(make_graph_t *g, char *name);
+int sub_process(make_state_t *state, make_graph_t *graph, char *makefile, char *dbname, char *target);
+int exec_process(make_state_t *state, make_graph_t *graph, char *makefile, char *dbname, char *target);
+int is_make_verbose();
 #endif

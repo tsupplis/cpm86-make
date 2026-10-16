@@ -15,6 +15,7 @@ rom
 **/cpmtest.img
 **/ccpmtest.img
 **/cpm86.img
+**/ccpm86.img
 **/*.sym
 **/*.lst
 **/*.map
