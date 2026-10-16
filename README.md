@@ -9,7 +9,7 @@ Laconic build automation, state management, and timestamp tracking for CP/M-86 1
 CP/M-86 1.1 (BDOS 2.2) lacks file timestamps, sub-process execution (`fork`/`exec`), and process exit codes. 
 `make` and `ts` resolve this through persistent indexed timestamps (`ndbm`), disk-backed state management (`make.sta`), and CCP batching (`$$$.SUB`).
 
-BDOS >= 3.0 is now supported (Concurrent CP/M-86, Concurrent DOS ...). For process management, p_cli is now use without a submit loop. so commands are executed iteratively. write now process exit codes are not yet scrutinized and file timestamp is not assume. it will come in subsequent releases
+BDOS >= 3.0 is now supported (Concurrent CP/M-86, Concurrent DOS ...). For process management, p_cli is now use without a submit loop. so commands are executed iteratively. write now process exit codes are not yet scrutinized and file timestamp is not assume. it will come in subsequent releases. currently Concurrent CP/M-86, Concurrent DOS 4.1, DOS Plus does not work as it does not support process management ala Concurrent DOS. It is really ok as sophistigated DOS Make utility are widely available from Concurrent DOS >= 4.1.
 
 ![make running on CP/M-86](images/make.png)
 
