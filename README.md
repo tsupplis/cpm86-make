@@ -1,6 +1,6 @@
 # CP/M-86 Make & Timestamp (ts)
 
-Laconic build automation, state management, and timestamp tracking for CP/M-86 1.1+.
+Laconic build automation, state management, and timestamp tracking for CP/M-86 1.1+ and above.
 
 ---
 
