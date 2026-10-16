@@ -11,7 +11,7 @@ CP/M-86 1.1 (BDOS 2.2) lacks file timestamps, sub-process execution (`fork`/`exe
 
 BDOS >= 3.0 is now supported (Concurrent CP/M-86, Concurrent DOS ...). For process management, p_cli is now used without a submit loop. so commands are executed iteratively. Right now process exit codes are not yet scrutinized and file timestamp is not assumed. It will come in subsequent releases. Currently Concurrent CP/M-86, Concurrent DOS 4.1.
 
-DOS Plus is not supported as it does not implement MP/M and CCP/M process management. It is really ok as sophistigated DOS Make utility are widely available from Concurrent DOS >= 4.1.
+DOS Plus is not supported as it does not implement MP/M and CCP/M process management. It is really ok as sophisticated DOS Make utilities are widely available from Concurrent DOS >= 4.1.
 
 ![make running on CP/M-86](images/make.png)
 
