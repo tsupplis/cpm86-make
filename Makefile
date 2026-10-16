@@ -29,7 +29,7 @@ ccpmexec.cmd: ccpmexec.o util.lib
 # --------------------------------------------------------------------
 DIST_CMD  = ts.cmd make.cmd
 DIST_DAT  = part1.txt part2.txt
-DIST_MAK  = test.mk
+DIST_MAK  = demo.mk
 
 dist: make.zip
 
