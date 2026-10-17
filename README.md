@@ -1,4 +1,4 @@
-# CP/M-86 Make & Timestamp (ts)
+# CP/M-86 Make Utility
 
 Laconic build automation, state management, and timestamp tracking for CP/M-86 1.1+ and above.
 
