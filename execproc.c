@@ -15,7 +15,8 @@ static int run_command(int parent_priority, char *command)
        These BDOS calls form a sequence; their return values are not status. */
     p_priority(parent_priority - 1);
     conattach();
-    p_priority(100);
+    fprintf(stdout,"\n\n");
+    p_priority(200);
     return 0;
 }
 

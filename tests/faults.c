@@ -179,9 +179,9 @@ int main(void)
     require(execute() != 0 && old_output() && last_stamp == 0, "failed positive stamp restores old output and invalidates metadata");
     setup(); fail_priority = fail_attach = create_output = 1; parent_priority = 100;
     require(execute() == 0 && launched == 2 && attached == 2, "priority and attach return values do not stop commands");
-    require(priority_calls == 4 && priority_values[0] == 99 && priority_values[1] == 100 &&
-            priority_values[2] == 99 && priority_values[3] == 100,
-            "wait priority is below parent and restores to 100");
+    require(priority_calls == 4 && priority_values[0] == 99 && priority_values[1] == 200 &&
+            priority_values[2] == 99 && priority_values[3] == 200,
+            "wait priority is below parent and restores to 200");
     require(event_count == 8 && !memcmp(events, "LPAPLPAP", 8), "each launch performs setprio attach setprio in order");
     setup(); fail_save = 1;
     require(execute() != 0 && launched == 0 && old_output(), "state failure prevents launch");

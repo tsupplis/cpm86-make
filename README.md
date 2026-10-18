@@ -1,6 +1,6 @@
 # CP/M-86 Make Utility
 
-Laconic build automation, state management, and timestamp tracking for CP/M-86 1.1+ and above.
+Simple build automation, state management, and timestamp tracking for CP/M-86 1.1+ and above.
 
 ---
 
@@ -103,41 +103,17 @@ clean:
 
 ### Build validation and recovery
 
-The graph stores dependency and recipe strings on demand so it fits the 16-bit
-near-data model. Limits are 32 targets (including `.phony` placeholders),
-16 prerequisites and 16 recipe commands per target, and 32 variables. Logical
-makefile lines may contain at most 127 characters, and expanded commands must
-fit the CCP's 125-character limit. Exceeding a limit, malformed variable
-expansion, or running out of memory stops parsing before any recipe is run.
+File recipes must recreate their target. Make preserves the old output as
+`make.bak`, restores it if no replacement appears, and timestamps successful
+replacements. Partial outputs cannot be distinguished from successful builds
+without child exit status.
 
-**File recipes must recreate their target.** Before running a recipe, make
-invalidates the target's recorded timestamp and renames an existing output to
-`make.bak` on the same drive/user. A missing replacement stops the build and
-restores the previous output. A successful replacement is timestamped and its
-backup removed. Recipes that update an existing output in place must be changed
-to recreate it. `make.bak` and `make.sta` are reserved build files; an existing
-backup is never overwritten.
+A bare `make` resumes the saved build; `-r` resets it and restores any recorded
+backup. Inspect `make.bak` manually if state is damaged. Dry runs preserve state.
 
-Concurrent execution stops on command-launch errors. After launching a command,
-make sets its priority number to one less than its parent, attaches the console,
-and restores priority to 100. Return values from this sequence are ignored. CP/M-86
-has no usable child exit status here, so a newly created file remains the
-success check: a tool that fails after creating a partial output cannot be
-detected reliably, and phony recipes have no file to validate.
-
-Submit batches check queue capacity and all state/submit writes. A failed
-append or close rolls back the newly appended records while preserving a
-caller's pending submit. If rollback itself fails, make reports the failure
-and retains recovery information for inspection.
-
-State format version 2 validates required fields, queue counts and an end
-marker. A bare `make` resumes using the saved makefile, database and target;
-conflicting explicit arguments stop without changing the active state. Missing
-rules, incomplete state and older state formats require inspection and an
-explicit `-r`. With valid state, `-r` restores the previous output before
-resetting. If state is damaged or missing, inspect and recover `make.bak`
-manually before restarting. Parser errors and `-n`, including `-n -r`, preserve
-existing state.
+Limits: 32 targets, 16 prerequisites and commands per target, 32 variables,
+127-character logical lines, and 125-character expanded commands. Limit and
+write errors stop the build; failed submit writes roll back the appended batch.
 
 ---
 
@@ -183,57 +159,68 @@ and Aztec. All test files are kept in temporary directories.
 
 ## Architecture
 
+`make.c` parses and plans builds; `state.c` saves progress. `recipe.c` handles
+output backup and validation for both `subproc.c` and `execproc.c`.
+
 ### Component Interaction
 
 ```mermaid
 flowchart LR
     MF[makefile] --> MK[make.cmd]
-    MK -->|Writes Queue| SUB[$$$.SUB]
-    MK <-->|Reads/Saves| STA[make.sta]
-    MK <-->|Reads/Updates| DB[(ts.db)]
-    SUB -->|Handover via Warm Boot| CCP[CCP Engine]
-    CCP -->|1. Executes Tools| TGT[Target Files]
-    CCP -->|2. Runs ts -s| DB
-    CCP -->|3. Resumes| MK
+    MK <-->|Progress| STA[make.sta]
+    MK <-->|Timestamps| DB[ts.dir / ts.pag]
+    MK <-->|Preserve / restore| BAK[make.bak]
+    MK -->|CP/M-86: batch| SUB[$$$.SUB]
+    SUB -->|Warm boot| CCP[CCP]
+    CCP -->|Recipes| TOOLS[Build tools]
+    CCP -->|Resume| MK
+    MK -->|CCP/M-86: p_cli| TOOLS
+    TOOLS --> TGT[Target files]
+    TGT -->|Validate output| MK
 ```
 
 ### Execution Lifecycle
 
 ```mermaid
 flowchart TD
-    A[make invocation] --> D[Parse makefile -f file]
-    D --> E[Read ts.db Timestamps -t db]
-    E --> F[Build Dependency DAG & Stack]
-    F --> G{Mode?}
-    G -->|Dry Run -n| H[INF: Print Actions & Exit - No Epoch / No SUB]
-    G -->|Build Mode| B[BDOS 2.2]
-    B -->|Yes| I[Save make.sta on Disk]
-    B -->|No| S[Execute Iteratively Tool Commands for first incomplete target]
-    I --> J[Generate $$$.SUB Queue]
-    J --> K[Warm Boot to CCP]
-    K --> L[CCP Runs Tool Commands]
-    L --> M[CCP Runs ts -s target]
-    M --> N[CCP Restarts make]
-    N --> O{Target Created?}
-    O -->|No| P[ERR: Target not created]
-    O -->|Yes| Q[Pop Target from make.sta & Continue]
-    S --> T{Target Created?}
-    T -->|No| R[ERR: Target not created]
-    T -->|Yes| U[Next Target]
-    U -->|None| V[We are done!]
-    U -->|Some| S
+    A[make invocation] --> B{Dry run?}
+    B -->|Yes| C[Parse, plan and print commands]
+    B -->|No| D[Load saved build or initialize new build]
+    D --> E[Parse selected makefile and resume or plan dependencies]
+    E --> F{Pending target?}
+    F -->|No| END[Delete state and finish]
+    F -->|Yes| G{Has recipe?}
+    G -->|No| V{File exists or target is phony?}
+    G -->|Yes| H[Invalidate timestamp, preserve old output, save state]
+    H --> I{Execution mode?}
+    I -->|CP/M-86| J[Append recipe and resume command to submit queue]
+    J --> K[Warm boot: CCP executes recipe and restarts make]
+    K --> L[Reload state and saved makefile]
+    L --> V
+    I -->|CCP/M-86| M[Launch commands and wait for console attachment]
+    M --> V
+    J -->|Write failure| ERR[Roll back batch, restore backup and stop]
+    M -->|Launch failure| ERR
+    V -->|No| ERR
+    V -->|Yes| N[Timestamp file, remove backup and save progress]
+    N --> F
 ```
+
+Phony targets skip file validation and timestamps. Make updates the timestamp
+database itself; no `ts -s` command is added to the submit queue.
 
 ### Dependency Decision Logic
 
 ```mermaid
 flowchart TD
-    T{Target T Exists on Disk?} -->|No| Build[Build T]
-    T -->|Yes| S{Timestamp T in ts.db?}
+    A{Forced or phony?} -->|Yes| Build[Build target]
+    A -->|No| T{Target file exists?}
+    T -->|No| Build
+    T -->|Yes| S{Recorded timestamp?}
     S -->|No| Build
-    S -->|Yes| P{Any Prereq Rebuilt or Newer?}
+    S -->|Yes| P{Any prerequisite needed or newer?}
     P -->|Yes| Build
-    P -->|No| OK[T is Up to Date]
+    P -->|No| OK[Up to date]
 ```
 
 ---
