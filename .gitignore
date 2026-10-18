@@ -16,6 +16,7 @@ rom
 **/ccpmtest.img
 **/cpm86.img
 **/ccpm86.img
+**/dosplus.img
 **/*.sym
 **/*.lst
 **/*.map

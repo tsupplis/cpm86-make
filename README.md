@@ -61,7 +61,7 @@ Usage:
 - `-f <file>`: Alternate makefile (default: `makefile`).
 - `-t <db>`: Alternate timestamp database name (default: `ts`).
 - `-a`: Unconditional rebuild (forces all targets to be rebuilt).
-- `-r`: Reset build state (clears `make.sta`).
+- `-r`: Reset build state (restores an active output backup when valid state is available, then clears `make.sta`). A dry run never resets state.
 - `-n`: Dry run (test mode) - bypasses epoch retrieval, prints action plan without modifying disk or `$$$.SUB`.
 - `-v`: Verbose mode - traces dependency evaluation, out-of-date reasons, and batch creation.
 - `target`: Target to build (defaults to first target in `makefile`).
@@ -101,6 +101,44 @@ clean:
 	ts -d *.out
 ```
 
+### Build validation and recovery
+
+The graph stores dependency and recipe strings on demand so it fits the 16-bit
+near-data model. Limits are 32 targets (including `.phony` placeholders),
+16 prerequisites and 16 recipe commands per target, and 32 variables. Logical
+makefile lines may contain at most 127 characters, and expanded commands must
+fit the CCP's 125-character limit. Exceeding a limit, malformed variable
+expansion, or running out of memory stops parsing before any recipe is run.
+
+**File recipes must recreate their target.** Before running a recipe, make
+invalidates the target's recorded timestamp and renames an existing output to
+`make.bak` on the same drive/user. A missing replacement stops the build and
+restores the previous output. A successful replacement is timestamped and its
+backup removed. Recipes that update an existing output in place must be changed
+to recreate it. `make.bak` and `make.sta` are reserved build files; an existing
+backup is never overwritten.
+
+Concurrent execution stops on command-launch errors. After launching a command,
+make sets its priority number to one less than its parent, attaches the console,
+and restores priority to 100. Return values from this sequence are ignored. CP/M-86
+has no usable child exit status here, so a newly created file remains the
+success check: a tool that fails after creating a partial output cannot be
+detected reliably, and phony recipes have no file to validate.
+
+Submit batches check queue capacity and all state/submit writes. A failed
+append or close rolls back the newly appended records while preserving a
+caller's pending submit. If rollback itself fails, make reports the failure
+and retains recovery information for inspection.
+
+State format version 2 validates required fields, queue counts and an end
+marker. A bare `make` resumes using the saved makefile, database and target;
+conflicting explicit arguments stop without changing the active state. Missing
+rules, incomplete state and older state formats require inspection and an
+explicit `-r`. With valid state, `-r` restores the previous output before
+resetting. If state is damaged or missing, inspect and recover `make.bak`
+manually before restarting. Parser errors and `-n`, including `-n -r`, preserve
+existing state.
+
 ---
 
 ## Diagnostics Standard
@@ -131,9 +169,15 @@ built here:
 
 ```sh
 make          # builds ts.cmd and make.cmd
-make test     # runs regression test suite under emu2
+make test-local # runs isolated regression and fault-injection checks
+make test       # runs those checks, then launches the CP/M emulator
 make clean    # removes all generated files
 ```
+
+The local tests also require Python 3 and a host C compiler (`cc`, or
+`CC_HOST`). They run the original checks, 16-bit memory/limit and state-resume
+regressions, and fault-injection harnesses compiled with both the host compiler
+and Aztec. All test files are kept in temporary directories.
 
 ---
 

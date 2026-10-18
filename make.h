@@ -18,10 +18,6 @@
 #define MAKE_VAR_NAME_LEN 32
 #define MAKE_VAR_VAL_LEN  128
 
-typedef struct _make_cmd_t {
-    char text[MAKE_LINE_LEN];
-} make_cmd_t;
-
 typedef struct _make_var_t {
     char name[MAKE_VAR_NAME_LEN];
     char value[MAKE_VAR_VAL_LEN];
@@ -30,9 +26,10 @@ typedef struct _make_var_t {
 typedef struct _make_target_t {
     char name[MAKE_NAME_LEN];
     int  dep_count;
-    char deps[MAKE_MAX_DEPS][MAKE_NAME_LEN];
+    /* Allocate only the strings present in the makefile. */
+    char *deps[MAKE_MAX_DEPS];
     int  cmd_count;
-    make_cmd_t cmds[MAKE_MAX_CMDS];
+    char *cmds[MAKE_MAX_CMDS];
     int  visited;   /* 0 = unvisited, 1 = visiting (cycle), 2 = resolved */
     int  needed;    /* 1 = out of date, needs build */
     int  is_phony;  /* 1 = phony/action target, file existence not required */
@@ -47,6 +44,10 @@ typedef struct _make_graph_t {
     make_var_t vars[MAKE_MAX_VARS];
 } make_graph_t;
 
+/* Recipes must recreate file targets; make.bak preserves the old output. */
+int make_prepare_target(make_state_t *st, make_target_t *t);
+int make_finish_target(make_state_t *st, make_target_t *t);
+int make_abort_target(make_state_t *st);
 int  make_parse(make_graph_t *g, char *filepath);
 int  make_build_dag(make_graph_t *g, char *target_name, char *dbname, make_state_t *st);
 int  make_file_exists(char *filename);

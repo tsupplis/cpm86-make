@@ -31,7 +31,7 @@ run() {
 }
 
 cleanup() {
-	rm -f testts.dir testts.pag make.sta $$$.SUB
+	rm -f testts.dir testts.pag make.sta '$$$.SUB'
 	rm -f out.tmp err.tmp test*.mk test*.txt test*.inc
 	rm -f testmain.c testutil.c testa.c testb.c testcomm.h
 	rm -f testmain.o testutil.o testapp.cmd testprog.cmd

@@ -15,14 +15,20 @@ all: ndbm.lib util.lib ts.cmd make.cmd ccpmexec.cmd
 ts.cmd: ts.o ndbm.lib util.lib
 	$(LD) -o $@ ts.o ndbm.lib util.lib $(CPM_LDFLAGS)
 
-make.cmd: make.o state.o subproc.o execproc.o ndbm.lib util.lib
-	$(LD) -o $@ make.o state.o subproc.o execproc.o ndbm.lib util.lib $(CPM_LDFLAGS)
+make.cmd: make.o state.o recipe.o subproc.o execproc.o ndbm.lib util.lib
+	$(LD) -o $@ make.o state.o recipe.o subproc.o execproc.o ndbm.lib util.lib $(CPM_LDFLAGS)
 
 prepoch.cmd: prepoch.o util.lib
 	$(LD) -o $@ prepoch.o util.lib $(CPM_LDFLAGS)
 
 ccpmexec.cmd: ccpmexec.o util.lib
 	$(LD) -o $@ ccpmexec.o util.lib $(CPM_LDFLAGS)
+
+# Header changes must rebuild every object that shares the graph/state layout.
+make.o recipe.o subproc.o execproc.o: make.h state.h
+make.o recipe.o execproc.o ts.o: util.h ndbm.h
+subproc.o: sub.h
+state.o: state.h
 
 # --------------------------------------------------------------------
 # Binary zip
@@ -64,8 +70,19 @@ cpmtest.img: ts.cmd make.cmd ccpmexec.cmd demo.mk part1.txt part2.txt startup.0
 	cpmcp -f ibmpc-514ss cpmtest.img part2.txt 0:
 	cpmls -F -f ibmpc-514ss cpmtest.img
 
-test-local:
-	sh ./test.sh
+dostest.img: ts.cmd make.cmd ccpmexec.cmd demo.mk part1.txt part2.txt startup.0
+	cp dosbase.img dostest.img 
+	mcopy -i dostest.img ts.cmd ::TS.CMD
+	mcopy -i dostest.img make.cmd ::MAKE.CMD
+	mcopy -i dostest.img ccpmexec.cmd ::CCPMEXEC.CMD
+	mcopy -i dostest.img startup.0 ::STARTUP.0
+	mcopy -i dostest.img demo.mk ::MAKEFILE
+	mcopy -i dostest.img part1.txt ::PART1.TXT
+	mcopy -i dostest.img part2.txt ::PART2.TXT
+	mdir -i dostest.img
+
+test-local: make.cmd ts.cmd
+	python3 tests/regression.py
 
 test: 
 	make test-local
@@ -77,3 +94,5 @@ cpmtest: cpmtest.img
 ccpmtest: cpmtest.img
 	./ccpm86
 
+dosplustest: dostest.img
+	./dosplus

@@ -18,5 +18,5 @@ missing.out:
 	a:show
 
 clean:
-	era *.out
+	a:era *.out
 	ts -d *.out

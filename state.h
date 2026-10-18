@@ -15,6 +15,7 @@ typedef struct _make_state_t {
     char dbname[STATE_NAME_LEN];
     char main_target[STATE_NAME_LEN];
     char current_target[STATE_NAME_LEN];
+    char backup[STATE_NAME_LEN];
     int  target_count;
     char targets[STATE_MAX_TARGETS][STATE_NAME_LEN];
 } make_state_t;

@@ -4,8 +4,8 @@
 int main(int argc, char ** argv) {
     int c;
     char * command="show";
-    fprintf(stderr,"INF: pid=%x\n", getpid());
-    fprintf(stderr,"INF: ppid=%x\n", getppid());
+    fprintf(stderr,"INF: pid=0x%x\n", getpid());
+    fprintf(stderr,"INF: ppid=0x%x\n", getppid());
     fprintf(stderr,"INF: priority=%d\n", getpriority());
     fprintf(stderr,"INF: ppriority=%d\n", getppriority());
     fprintf(stderr,"INF: calling p_cli('%s')\n",command);

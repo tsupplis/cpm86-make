@@ -143,18 +143,21 @@ int make_set_timestamp(char *dbname, char *filename, long ts_val)
     char key_buf[MAKE_NAME_LEN];
     char val_buf[32];
     int fd;
+    int rc;
     char path[128];
 
     /* Ensure .dir and .pag exist */
     strcpy(path, dbname);
     strcat(path, ".dir");
     fd = open(path, O_RDWR | O_CREAT, 0666);
-    if (fd >= 0) close(fd);
+    if (fd < 0) return -1;
+    if (close(fd) < 0) return -1;
 
     strcpy(path, dbname);
     strcat(path, ".pag");
     fd = open(path, O_RDWR | O_CREAT, 0666);
-    if (fd >= 0) close(fd);
+    if (fd < 0) return -1;
+    if (close(fd) < 0) return -1;
 
     db = dbm_open(dbname, O_RDWR, 0666);
     if (!db)
@@ -171,9 +174,10 @@ int make_set_timestamp(char *dbname, char *filename, long ts_val)
     val.dptr = val_buf;
     val.dsize = strlen(val_buf) + 1;
 
-    dbm_store(db, key, val, DBM_REPLACE);
+    rc = dbm_store(db, key, val, DBM_REPLACE);
+    if (dbm_error(db)) rc = -1;
     dbm_close(db);
-    return 0;
+    return rc < 0 ? -1 : 0;
 }
 
 /* Find target by name in the graph */
@@ -196,14 +200,22 @@ make_target_t *make_find_target(make_graph_t *g, char *name)
     return NULL;
 }
 
+static char *make_copy(char *s)
+{
+    char *copy = malloc(strlen(s) + 1);
+    if (copy) strcpy(copy, s);
+    return copy;
+}
+
 /* Set or update a variable definition */
-static void make_set_var(make_graph_t *g, char *name, char *val)
+static int make_set_var(make_graph_t *g, char *name, char *val)
 {
     int i;
     char lower_name[MAKE_VAR_NAME_LEN];
 
-    if (!g || !name || !*name)
-        return;
+    if (!g || !name || !*name || strlen(name) >= MAKE_VAR_NAME_LEN ||
+        strlen(val) >= MAKE_VAR_VAL_LEN)
+        return -1;
 
     strncpy(lower_name, name, sizeof(lower_name) - 1);
     lower_name[sizeof(lower_name) - 1] = '\0';
@@ -217,7 +229,7 @@ static void make_set_var(make_graph_t *g, char *name, char *val)
         if (strcmp(exist_lower, lower_name) == 0) {
             strncpy(g->vars[i].value, val, MAKE_VAR_VAL_LEN - 1);
             g->vars[i].value[MAKE_VAR_VAL_LEN - 1] = '\0';
-            return;
+            return 0;
         }
     }
 
@@ -227,7 +239,9 @@ static void make_set_var(make_graph_t *g, char *name, char *val)
         strncpy(g->vars[g->var_count].value, val, MAKE_VAR_VAL_LEN - 1);
         g->vars[g->var_count].value[MAKE_VAR_VAL_LEN - 1] = '\0';
         g->var_count++;
+        return 0;
     }
+    return -1;
 }
 
 /* Retrieve variable value by name (case-insensitive) */
@@ -254,116 +268,92 @@ static char *make_get_var(make_graph_t *g, char *name)
     return NULL;
 }
 
-/* Expand variables and automatic macros ($@, $<, $*, $^, $(VAR)) */
-static void make_expand_cmd(make_graph_t *g, char *dst, int max_len, char *src, 
-    make_target_t *t)
+/* Append one expansion without silently shortening a command. */
+static int make_cat(char *dst, int max_len, char *text)
+{
+    if (strlen(dst) + strlen(text) >= max_len) return -1;
+    strcat(dst, text);
+    return 0;
+}
+
+static int make_expand_cmd(make_graph_t *g, char *dst, int max_len,
+                           char *src, make_target_t *t)
 {
     char *p = src;
-    int d = 0;
-    char all_deps[MAKE_LINE_LEN];
-    int i;
+    char name[MAKE_VAR_NAME_LEN];
+    char one[2];
+    char close_char;
+    char *value;
+    int n, i;
 
-    /* Build space-separated list of all dependencies */
-    all_deps[0] = '\0';
-    if (t) {
-        for (i = 0; i < t->dep_count; i++) {
-            if (i > 0 && (int)strlen(all_deps) + 1 < (int)sizeof(all_deps))
-                strcat(all_deps, " ");
-            if ((int)strlen(all_deps) + (int)strlen(t->deps[i]) < (int)sizeof(all_deps))
-                strcat(all_deps, t->deps[i]);
+    dst[0] = '\0';
+    one[1] = '\0';
+    while (*p) {
+        if (*p != '$') {
+            one[0] = *p++;
+            if (make_cat(dst, max_len, one) < 0) return -1;
+            continue;
         }
-    }
-
-    while (*p && d < max_len - 1) {
-        if (*p == '$') {
+        p++;
+        if (*p == '*' || *p == '^') {
+            for (i = 0; i < t->dep_count; i++) {
+                if (i && make_cat(dst, max_len, " ") < 0) return -1;
+                if (make_cat(dst, max_len, t->deps[i]) < 0) return -1;
+            }
             p++;
-            if (*p == '\0') {
-                dst[d++] = '$';
-                break;
-            }
-            if (*p == '$') {
-                dst[d++] = '$';
-                p++;
-                continue;
-            }
-            if (*p == '@') {
-                char *sub = (t ? t->name : "");
-                while (*sub && d < max_len - 1)
-                    dst[d++] = *sub++;
-                p++;
-                continue;
-            }
-            if (*p == '<') {
-                char *sub = (t && t->dep_count > 0 ? t->deps[0] : "");
-                while (*sub && d < max_len - 1)
-                    dst[d++] = *sub++;
-                p++;
-                continue;
-            }
-            if (*p == '*' || *p == '^') {
-                char *sub = all_deps;
-                while (*sub && d < max_len - 1)
-                    dst[d++] = *sub++;
-                p++;
-                continue;
-            }
-            if (*p == '(' || *p == '{') {
-                char close_char = (*p == '(') ? ')' : '}';
-                char var_name[MAKE_VAR_NAME_LEN];
-                int vi = 0;
-                char *sub;
-
-                p++;
-                while (*p && *p != close_char && vi < (int)sizeof(var_name) - 1) {
-                    var_name[vi++] = *p++;
-                }
-                var_name[vi] = '\0';
-                if (*p == close_char) p++;
-
-                sub = make_get_var(g, var_name);
-                if (sub) {
-                    while (*sub && d < max_len - 1)
-                        dst[d++] = *sub++;
-                }
-                continue;
-            }
-            /* Single character var, e.g. $X */
-            {
-                char var_name[2];
-                char *sub;
-                var_name[0] = *p++;
-                var_name[1] = '\0';
-                sub = make_get_var(g, var_name);
-                if (sub) {
-                    while (*sub && d < max_len - 1)
-                        dst[d++] = *sub++;
-                }
-                continue;
-            }
+            continue;
         }
-        dst[d++] = *p++;
+        if (*p == '@') value = t->name;
+        else if (*p == '<') value = t->dep_count ? t->deps[0] : "";
+        else if (*p == '$' || !*p) value = "$";
+        else {
+            if (*p == '(' || *p == '{') {
+                close_char = *p++ == '(' ? ')' : '}';
+                n = 0;
+                while (*p && *p != close_char) {
+                    if (n >= MAKE_VAR_NAME_LEN - 1) return -1;
+                    name[n++] = *p++;
+                }
+                if (*p != close_char) return -1;
+                name[n] = '\0';
+            } else {
+                name[0] = *p;
+                name[1] = '\0';
+            }
+            value = make_get_var(g, name);
+            if (!value) value = "";
+        }
+        if (make_cat(dst, max_len, value) < 0) return -1;
+        if (*p) p++;
     }
-    dst[d] = '\0';
+    return 0;
 }
 
 /* Read logical line with line continuation support (\ at end) */
 static int make_read_logical_line(char *buf, int max_len, FILE *fp)
 {
-    int total_len = 0;
+    int len = 0;
+    int c;
     buf[0] = '\0';
-
-    while (fgets(buf + total_len, max_len - total_len, fp)) {
-        int len;
-        make_trim_trailing(buf + total_len);
-        len = strlen(buf);
-        if (len > 0 && buf[len - 1] == '\\') {
-            buf[len - 1] = ' ';
-            total_len = len;
-            continue;
+    while ((c = fgetc(fp)) != EOF && c != 0x1a) {
+        if (c == '\r') continue;
+        if (c == '\n') {
+            buf[len] = '\0';
+            make_trim_trailing(buf);
+            len = strlen(buf);
+            if (len && buf[len - 1] == '\\') {
+                buf[len - 1] = ' ';
+                continue;
+            }
+            return 1;
         }
-        return 1;
+        if (len >= max_len - 1) return -1;
+        buf[len++] = c;
     }
-    return total_len > 0;
+    if (ferror(fp)) return -1;
+    if (c == 0x1a) ungetc(c, fp);
+    buf[len] = '\0';
+    return len ? 1 : 0;
 }
 
 /* Parse a makefile into the dependency graph */
@@ -371,6 +361,8 @@ int make_parse(make_graph_t *g, char *filepath)
 {
     FILE *fp;
     char line[MAKE_LINE_LEN];
+    char expanded[126];
+    int read_rc;
     make_target_t *cur_target = NULL;
 
     memset(g, 0, sizeof(make_graph_t));
@@ -381,7 +373,7 @@ int make_parse(make_graph_t *g, char *filepath)
         return -1;
     }
 
-    while (make_read_logical_line(line, sizeof(line), fp)) {
+    while ((read_rc = make_read_logical_line(line, sizeof(line), fp)) > 0) {
         char *p;
         char *colon;
         char *eq;
@@ -410,10 +402,12 @@ int make_parse(make_graph_t *g, char *filepath)
             cmd_text = make_skip_ws(line);
             if (*cmd_text == '\0')
                 continue;
-            if (cur_target->cmd_count < MAKE_MAX_CMDS) {
-                make_expand_cmd(g, cur_target->cmds[cur_target->cmd_count].text, MAKE_LINE_LEN, cmd_text, cur_target);
-                cur_target->cmd_count++;
-            }
+            if (cur_target->cmd_count >= MAKE_MAX_CMDS) goto limit_error;
+            if (make_expand_cmd(g, expanded, sizeof(expanded), cmd_text, cur_target) < 0)
+                goto limit_error;
+            cur_target->cmds[cur_target->cmd_count] = make_copy(expanded);
+            if (!cur_target->cmds[cur_target->cmd_count]) goto memory_error;
+            cur_target->cmd_count++;
             continue;
         }
 
@@ -430,7 +424,7 @@ int make_parse(make_graph_t *g, char *filepath)
             var_val = make_skip_ws(eq + 1);
             make_trim_trailing(var_val);
 
-            make_set_var(g, var_name, var_val);
+            if (make_set_var(g, var_name, var_val) < 0) goto limit_error;
             cur_target = NULL;
             continue;
         }
@@ -454,7 +448,9 @@ int make_parse(make_graph_t *g, char *filepath)
                 tok = make_next_token(&deps_part);
                 while (tok != NULL) {
                     if (*tok != '\0') {
-                        make_target_t *pt = make_find_target(g, tok);
+                        make_target_t *pt;
+                        if (strlen(tok) >= MAKE_NAME_LEN) goto limit_error;
+                        pt = make_find_target(g, tok);
                         if (pt) {
                             pt->is_phony = 1;
                         } else if (g->target_count < MAKE_MAX_TARGETS) {
@@ -463,7 +459,7 @@ int make_parse(make_graph_t *g, char *filepath)
                             strncpy(pt->name, tok, MAKE_NAME_LEN - 1);
                             make_strlower(pt->name);
                             pt->is_phony = 1;
-                        }
+                        } else goto limit_error;
                     }
                     tok = make_next_token(&deps_part);
                 }
@@ -471,11 +467,11 @@ int make_parse(make_graph_t *g, char *filepath)
                 continue;
             }
 
+            if (strlen(tgt_name) >= MAKE_NAME_LEN) goto limit_error;
             cur_target = make_find_target(g, tgt_name);
             if (!cur_target) {
                 if (g->target_count >= MAKE_MAX_TARGETS) {
-                    fprintf(stderr, "WRN: Maximum targets limit (%d) reached\n", MAKE_MAX_TARGETS);
-                    break;
+                    goto limit_error;
                 }
                 cur_target = &g->targets[g->target_count++];
                 memset(cur_target, 0, sizeof(make_target_t));
@@ -495,10 +491,12 @@ int make_parse(make_graph_t *g, char *filepath)
             /* Parse dependencies */
             deps_part = colon + 1;
             tok = make_next_token(&deps_part);
-            while (tok != NULL && cur_target->dep_count < MAKE_MAX_DEPS) {
+            while (tok != NULL) {
                 if (*tok != '\0') {
-                    strncpy(cur_target->deps[cur_target->dep_count], tok, MAKE_NAME_LEN - 1);
-                    cur_target->deps[cur_target->dep_count][MAKE_NAME_LEN - 1] = '\0';
+                    if (cur_target->dep_count >= MAKE_MAX_DEPS ||
+                        strlen(tok) >= MAKE_NAME_LEN) goto limit_error;
+                    cur_target->deps[cur_target->dep_count] = make_copy(tok);
+                    if (!cur_target->deps[cur_target->dep_count]) goto memory_error;
                     make_strlower(cur_target->deps[cur_target->dep_count]);
                     cur_target->dep_count++;
                 }
@@ -507,8 +505,18 @@ int make_parse(make_graph_t *g, char *filepath)
         }
     }
 
+    if (read_rc < 0) goto limit_error;
     fclose(fp);
     return 0;
+
+limit_error:
+    fprintf(stderr, "ERR: Makefile limit exceeded or invalid expansion in '%s'\n", filepath);
+    fclose(fp);
+    return -1;
+memory_error:
+    fprintf(stderr, "ERR: Not enough memory for makefile '%s'\n", filepath);
+    fclose(fp);
+    return -1;
 }
 
 
@@ -596,7 +604,7 @@ static int make_eval_target(make_graph_t *g, char *tgt_name, char *dbname, make_
 
     /* Push target to build stack (leaf targets pushed first) */
     if (t->needed) {
-        state_push(st, t->name);
+        if (state_push(st, t->name) < 0) return -1;
     }
 
     return 0;
@@ -610,17 +618,19 @@ int make_build_dag(make_graph_t *g, char *target_name, char *dbname, make_state_
 
 int main(int argc, char *argv[])
 {
-    make_graph_t graph;
-    make_state_t state;
+    static make_graph_t graph;
+    static make_state_t state;
     char *makefile = "makefile";
     char *dbname = "ts";
     char *target = NULL;
+    char file_arg[STATE_NAME_LEN], db_arg[STATE_NAME_LEN];
     int dry_run = 0;
     int is_resumed = 0;
     int reset_state = 0;
     int argi = 1;
     int i, k;
     int use_exec = 0;
+    int file_given = 0, db_given = 0;
 
     use_exec = (bdos(12, 0) & 0xff) > 0x22;
 
@@ -631,10 +641,12 @@ int main(int argc, char *argv[])
             argi++;
             if (argi >= argc) make_usage();
             makefile = argv[argi++];
+            file_given = 1;
         } else if (strcmp(argv[argi], "-t") == 0 || strcmp(argv[argi], "-T") == 0) {
             argi++;
             if (argi >= argc) make_usage();
             dbname = argv[argi++];
+            db_given = 1;
         } else if (strcmp(argv[argi], "-n") == 0 || strcmp(argv[argi], "-N") == 0) {
             dry_run = 1;
             argi++;
@@ -659,18 +671,43 @@ int main(int argc, char *argv[])
         }
     }
 
-     /* Reset state if requested */
-    if (reset_state) {
-        if (state_exists(STATE_DEFAULT_FILE))
-            state_delete(STATE_DEFAULT_FILE);
-    }
-
-    /* Parse makefile first */
-    if (make_parse(&graph, makefile) < 0) {
-        if (state_exists(STATE_DEFAULT_FILE)) 
-            state_delete(STATE_DEFAULT_FILE);
+    if (strlen(makefile) >= STATE_NAME_LEN || strlen(dbname) >= STATE_NAME_LEN ||
+        (target && strlen(target) >= STATE_NAME_LEN)) {
+        fprintf(stderr, "ERR: Command argument too long\n");
         return 1;
     }
+    strcpy(file_arg, makefile);
+    strcpy(db_arg, dbname);
+    makefile = file_arg;
+    dbname = db_arg;
+    make_strlower(makefile);
+    make_strlower(dbname);
+    if (target) make_strlower(target);
+
+    if (!dry_run && state_exists(STATE_DEFAULT_FILE)) {
+        if (state_load(&state, STATE_DEFAULT_FILE) < 0) {
+            if (!reset_state) {
+                fprintf(stderr, "ERR: Invalid make.sta; inspect backups, then use -r\n");
+                return 1;
+            }
+        } else if (reset_state) {
+            if (make_abort_target(&state) < 0) return 1;
+        } else {
+            if ((file_given && strcmp(makefile, state.makefile)) ||
+                (db_given && strcmp(dbname, state.dbname)) ||
+                (target && strcmp(target, state.main_target))) {
+                fprintf(stderr, "ERR: Active build differs; use -r to reset it\n");
+                return 1;
+            }
+            is_resumed = 1;
+            makefile = state.makefile;
+            dbname = state.dbname;
+            target = state.main_target;
+        }
+        if (reset_state && state_delete(STATE_DEFAULT_FILE) < 0) return 1;
+    }
+
+    if (make_parse(&graph, makefile) < 0) return 1;
 
         /* Dry Run (-n) Mode */
     if (dry_run) {
@@ -701,53 +738,40 @@ int main(int argc, char *argv[])
             make_target_t *t = make_find_target(&graph, state.targets[i]);
             if (t) {
                 for (k = 0; k < t->cmd_count; k++) {
-                    printf("%s\n", t->cmds[k].text);
+                    printf("%s\n", t->cmds[k]);
                 }
             }
         }
         return 0;
     }
 
-    /* Check if resuming an active build state */
-    if (state_exists(STATE_DEFAULT_FILE)) {
-        char *cur;
-        if (state_load(&state, STATE_DEFAULT_FILE) == 0) {
-            is_resumed = 1;
-            cur = state_get_current(&state);
-            if (cur && *cur) {
-                make_target_t *cur_t = make_find_target(&graph, cur);
-                int phony = (cur_t && cur_t->is_phony);
-
-                if (!phony && !make_file_exists(cur)) {
-                    fprintf(stderr, "ERR: Target '%s' not created\n", cur);
-                    state_delete(STATE_DEFAULT_FILE);
-                    return 1;
-                }
-                if (make_verbose) {
-                    fprintf(stdout, "INF: Target '%s' built successfully\n", cur);
-                }
-                /* Record updated timestamp if not phony */
-                if (!phony) {
-                    long now = epoch_now();
-                    if (now == EPOCH_ERR) {
-                        now = 1L;
-                    }
-                    make_set_timestamp(state.dbname, cur, now);
-                }
-                state_set_current(&state, NULL);
+    if (is_resumed) {
+        char *cur = state_get_current(&state);
+        make_target_t *cur_t;
+        /* Every queued name must still have a rule in the saved makefile. */
+        for (i = 0; i < state_count(&state); i++) {
+            if (!make_find_target(&graph, state.targets[i])) {
+                fprintf(stderr, "ERR: Saved target missing from makefile; use -r\n");
+                return 1;
             }
-
-            /* Advance to next pending target */
-            if (state_count(&state) == 0) {
-                fprintf(stdout, "INF: Build complete.\n");
-                state_delete(STATE_DEFAULT_FILE);
-                return 0;
+        }
+        if (*cur) {
+            cur_t = make_find_target(&graph, cur);
+            if (!cur_t) {
+                fprintf(stderr, "ERR: Saved current target missing; use -r\n");
+                return 1;
             }
-
-            /* Resumed with remaining targets */
-            makefile = state.makefile;
-            dbname = state.dbname;
-            target = state.main_target;
+            if (make_finish_target(&state, cur_t) < 0) {
+                if (make_abort_target(&state) == 0) state_delete(STATE_DEFAULT_FILE);
+                return 1;
+            }
+            /* Commit completion before staging another target. */
+            if (state_save(&state, STATE_DEFAULT_FILE) < 0) return 1;
+        }
+        if (!state_count(&state)) {
+            if (state_delete(STATE_DEFAULT_FILE) < 0) return 1;
+            fprintf(stdout, "INF: Build complete.\n");
+            return 0;
         }
     }
 
