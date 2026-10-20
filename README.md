@@ -245,5 +245,5 @@ flowchart TD
 
 ## License
 
-The whole repository is under MIT (License)[LICENSE.md] unless specified otherwise in a subdirectory.
+The whole repository is under MIT [License](LICENSE.md) unless specified otherwise in a subdirectory.
 
