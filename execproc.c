@@ -1,11 +1,23 @@
 #include <stdio.h>
+#include <ctype.h>
 #include "make.h"
 #include "util.h"
+
+extern int bdos();
+extern int getusr();
+
+/* Echo the command like the CCP prompt does: <user><drive>>COMMAND */
+static void echo_command(char *command)
+{
+    printf("%d%c>", getusr() & 0xff, 'A' + (bdos(25, 0) & 0x0f));
+    while (*command) putchar(toupper(*command++ & 0xff));
+    putchar('\n');
+}
 
 static int run_command(int parent_priority, char *command)
 {
     int rc;
-    printf("%s\n", command);
+    echo_command(command);
     rc = p_cli(command);
     if (rc != 0) {
         fprintf(stderr, "ERR: Cannot launch '%s' (%d)\n", command, rc);
@@ -15,7 +27,7 @@ static int run_command(int parent_priority, char *command)
        These BDOS calls form a sequence; their return values are not status. */
     p_priority(parent_priority - 1);
     conattach();
-    fprintf(stdout,"\n\n");
+    fprintf(stdout,"\n");
     p_priority(200);
     return 0;
 }

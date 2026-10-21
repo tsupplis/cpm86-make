@@ -62,6 +62,10 @@ int sub_append(char *command)
 int sub_close(void) { return fail_close ? -1 : 0; }
 int sub_abort(void) { pending = base; aborted++; return 0; }
 int getppriority(void) { return parent_priority; }
+#ifdef MAKE_HOST_TEST
+int getusr(void) { return 1; }
+int bdos(int fn, int dx) { return 2; }
+#endif
 int p_cli(char *command)
 {
     FILE *fp;
