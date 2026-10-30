@@ -64,10 +64,9 @@ cpmtest.img: ts.cmd make.cmd ccpmexec.cmd demo.mk part1.txt part2.txt startup.0
 	cpmcp -f ibmpc-514ss cpmtest.img ts.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img make.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img ccpmexec.cmd 0:
-	cpmcp -f ibmpc-514ss cpmtest.img startup.0 0:
-	cpmcp -f ibmpc-514ss cpmtest.img demo.mk 0:makefile
-	cpmcp -f ibmpc-514ss cpmtest.img part1.txt 0:
-	cpmcp -f ibmpc-514ss cpmtest.img part2.txt 0:
+	cpmcp -f ibmpc-514ss cpmtest.img -t demo.mk 0:makefile
+	cpmcp -f ibmpc-514ss cpmtest.img -t part1.txt 0:
+	cpmcp -f ibmpc-514ss cpmtest.img -t part2.txt 0:
 	cpmls -F -f ibmpc-514ss cpmtest.img
 
 dostest.img: ts.cmd make.cmd ccpmexec.cmd demo.mk part1.txt part2.txt startup.0
@@ -75,7 +74,6 @@ dostest.img: ts.cmd make.cmd ccpmexec.cmd demo.mk part1.txt part2.txt startup.0
 	mcopy -i dostest.img ts.cmd ::TS.CMD
 	mcopy -i dostest.img make.cmd ::MAKE.CMD
 	mcopy -i dostest.img ccpmexec.cmd ::CCPMEXEC.CMD
-	mcopy -i dostest.img startup.0 ::STARTUP.0
 	mcopy -i dostest.img demo.mk ::MAKEFILE
 	mcopy -i dostest.img part1.txt ::PART1.TXT
 	mcopy -i dostest.img part2.txt ::PART2.TXT
