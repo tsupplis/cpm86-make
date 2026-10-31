@@ -18,7 +18,18 @@ static int run_command(int parent_priority, char *command)
 {
     int rc;
     echo_command(command);
-    rc = p_cli(command);
+    {
+        int version = osver();
+        if (version >= 0x31 && version <= 0x41) {
+            rc = p_spawn(command);
+            if (!rc) {
+                putchar('\n');
+                return 0;
+            }
+        } else {
+            rc = p_cli(command);
+        }
+    }
     if (rc != 0) {
         fprintf(stderr, "ERR: Cannot launch '%s' (%d)\n", command, rc);
         return -1;

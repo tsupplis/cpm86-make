@@ -78,6 +78,9 @@ int p_cli(char *command)
     }
     return launch_error;
 }
+static int test_version = 0x30;
+int osver(void) { return test_version; }
+int p_spawn(char *command) { return p_cli(command); }
 int p_priority(int priority)
 {
     priority_values[priority_calls++] = priority;
@@ -187,6 +190,10 @@ int main(void)
             priority_values[2] == 99 && priority_values[3] == 200,
             "wait priority is below parent and restores to 200");
     require(event_count == 8 && !memcmp(events, "LPAPLPAP", 8), "each launch performs setprio attach setprio in order");
+    setup(); test_version = 0x41; create_output = 1;
+    require(execute() == 0 && launched == 2 && attached == 0 && priority_calls == 0,
+            "spawn owns console recovery for both recipes");
+    test_version = 0x30;
     setup(); fail_save = 1;
     require(execute() != 0 && launched == 0 && old_output(), "state failure prevents launch");
     setup();

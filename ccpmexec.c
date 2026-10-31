@@ -1,19 +1,24 @@
 #include <stdio.h>
+#include <string.h>
+#include <ctype.h>
 #include <util.h>
 
-int main(int argc, char ** argv) {
-    int c;
-    char * command="show";
-    fprintf(stderr,"INF: pid=0x%x\n", getpid());
-    fprintf(stderr,"INF: ppid=0x%x\n", getppid());
-    fprintf(stderr,"INF: priority=%d\n", getpriority());
-    fprintf(stderr,"INF: ppriority=%d\n", getppriority());
-    fprintf(stderr,"INF: calling p_cli('%s')\n",command);
-    /*condetach();*/
-    c=p_cli(command);
-    p_priority(197);
-    conattach();
-    p_priority(200);
-    fprintf(stderr,"\nINF: p_cli()=%d\n",c);
-    return 0;
+int main(int argc, char **argv)
+{
+    char command[128];
+    int i, rc;
+
+    strcpy(command, argc > 1 ? "" : "show");
+    for (i = 1; i < argc; ++i) {
+        if (strlen(command) + (i > 1) + strlen(argv[i]) >= sizeof(command)) {
+            fprintf(stderr, "Command line too long\n");
+            return 1;
+        }
+        if (i > 1)
+            strcat(command, " ");
+        strcat(command, argv[i]);
+    }
+    rc = p_spawn(command);
+    fprintf(stderr,"Spawn returned %d\n",rc);
+    return rc != 0;
 }

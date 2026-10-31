@@ -9,7 +9,7 @@ Simple build automation, state management, and timestamp tracking for CP/M-86 1.
 CP/M-86 1.1 (BDOS 2.2) lacks file timestamps, sub-process execution (`fork`/`exec`), and process exit codes. 
 `make` and `ts` resolve this through persistent indexed timestamps (`ndbm`), disk-backed state management (`make.sta`), and CCP batching (`$$$.SUB`).
 
-BDOS >= 3.0 is now supported (Concurrent CP/M-86, Concurrent DOS ...). For process management, p_cli is now used without a submit loop. so commands are executed iteratively. Right now process exit codes are not yet scrutinized and file timestamp is not assumed. It will come in subsequent releases. Currently Concurrent CP/M-86, Concurrent DOS 4.1.
+BDOS >= 3.0 is now supported (Concurrent CP/M-86, Concurrent DOS ...). Concurrent BDOS 31h through 41h uses p_spawn for native and PC-MODE DOS programs. Other concurrent versions use p_cli. so commands are executed iteratively. Right now process exit codes are not yet scrutinized and file timestamp is not assumed. It will come in subsequent releases. Currently Concurrent CP/M-86, Concurrent DOS 4.1.
 
 DOS Plus is not supported as it does not implement MP/M and CCP/M process management. It is really ok as sophisticated DOS Make utilities are widely available from Concurrent DOS >= 4.1.
 
@@ -174,7 +174,7 @@ flowchart LR
     SUB -->|Warm boot| CCP[CCP]
     CCP -->|Recipes| TOOLS[Build tools]
     CCP -->|Resume| MK
-    MK -->|CCP/M-86: p_cli| TOOLS
+    MK -->|Concurrent 31h–41h: p_spawn| TOOLS
     TOOLS --> TGT[Target files]
     TGT -->|Validate output| MK
 ```
@@ -248,3 +248,8 @@ flowchart TD
 
 The whole repository is under MIT [License](LICENSE.md) unless specified otherwise in a subdirectory.
 
+
+On Concurrent BDOS 31h through 41h inclusive, recipe execution uses the
+local util.lib `p_spawn` dispatcher. Native CMD and PC-MODE DOS programs
+share the same return path. Recipe execution continues after console
+recovery; the result indicates launch success, not the child exit code.
