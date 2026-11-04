@@ -108,6 +108,11 @@ File recipes must recreate their target. Make preserves the old output as
 replacements. Partial outputs cannot be distinguished from successful builds
 without child exit status.
 
+If the system clock cannot provide a representable epoch timestamp, completion
+fails with an error and the normal rollback restores the old output. No synthetic
+timestamp is stored. With a signed 32-bit epoch, dates after
+2038-01-19 03:14:07 UTC are unsupported. Phony targets do not require a clock.
+
 A bare `make` resumes the saved build; `-r` resets it and restores any recorded
 backup. Inspect `make.bak` manually if state is damaged. Dry runs preserve state.
 
@@ -253,3 +258,9 @@ On Concurrent BDOS 31h through 41h inclusive, recipe execution uses the
 local util.lib `p_spawn` dispatcher. Native CMD and PC-MODE DOS programs
 share the same return path. Recipe execution continues after console
 recovery; the result indicates launch success, not the child exit code.
+
+CCPMEXEC is built with header flag bit 1 set (`cmdmod -f 1=1`). On a kernel
+supporting KEEP_TAIL this preserves argument case before p_spawn forwards the
+command. Stock kernels retain their previous uppercase behaviour. This does
+not change MAKE or MENU; the command-selection APIs are unchanged. Run
+`make check-ccpmexec-tail` to validate the build flag.

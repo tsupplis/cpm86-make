@@ -93,7 +93,10 @@ int make_finish_target(make_state_t *st, make_target_t *t)
             return -1;
         }
         now = epoch_now();
-        if (now == EPOCH_ERR) now = 1L;
+        if (now == EPOCH_ERR) {
+            fprintf(stderr, "ERR: Cannot retrieve system date/time for '%s'\n", t->name);
+            return -1;
+        }
         if (make_set_timestamp(st->dbname, t->name, now) < 0) {
             fprintf(stderr, "ERR: Cannot timestamp '%s'\n", t->name);
             return -1;

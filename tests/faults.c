@@ -17,7 +17,7 @@ static make_state_t state;
 static int fail_save, fail_open, fail_append, fail_close, fail_stamp;
 static int pending, base, appended, aborted, launched, attached, launch_error;
 static int create_output, fail_priority, fail_attach, positive_stamps;
-static long last_stamp;
+static long last_stamp, clock_value;
 static int parent_priority, priority_calls, priority_values[4], event_count;
 static char events[8];
 static char pushed[17][126];
@@ -42,7 +42,7 @@ make_target_t *make_find_target(make_graph_t *g, char *name)
     return NULL;
 }
 int is_make_verbose(void) { return 0; }
-long epoch_now(void) { return 1000L; }
+long epoch_now(void) { return clock_value; }
 int make_set_timestamp(char *db, char *name, long stamp)
 {
     last_stamp = stamp;
@@ -130,6 +130,7 @@ static void setup(void)
     pending = 4; base = appended = aborted = launched = attached = 0;
     launch_error = create_output = fail_priority = fail_attach = positive_stamps = 0;
     last_stamp = -1;
+    clock_value = 1000L;
     parent_priority = 200;
     priority_calls = event_count = 0;
     output("OLD");
@@ -180,6 +181,24 @@ int main(void)
     require(execute() != 0 && old_output() && positive_stamps == 0, "successful launch without output fails");
     setup(); create_output = 1;
     require(execute() == 0 && !old_output() && positive_stamps == 1 && !make_file_exists("make.bak"), "new output committed");
+    setup(); create_output = 1; clock_value = -1L;
+    require(execute() != 0 && old_output() && positive_stamps == 0 && last_stamp == 0,
+            "clock error fails concurrent completion and restores output without fake stamp");
+    require(!make_file_exists("make.bak") && !make_file_exists("make.sta"),
+            "clock error completes concurrent rollback");
+    setup();
+    require(submit() == 0, "prepare resumed clock failure");
+    output("NEW");
+    clock_value = -1L;
+    require(make_finish_target(&state, &graph.targets[0]) < 0 && positive_stamps == 0,
+            "resumed clock failure never writes a fake timestamp");
+    require(make_file_exists("make.bak") && !strcmp(state.current_target, "result.o"),
+            "clock failure retains recovery information until rollback");
+    require(make_abort_target(&state) == 0 && old_output() && last_stamp == 0,
+            "resumed clock failure restores original output");
+    setup(); graph.targets[0].is_phony = 1; clock_value = -1L;
+    require(execute() == 0 && positive_stamps == 0 && old_output(),
+            "phony targets do not require a valid clock");
     setup(); fail_stamp = 1;
     require(execute() != 0 && launched == 0 && old_output(), "timestamp invalidation failure stops launch");
     setup(); fail_stamp = 2; create_output = 1;

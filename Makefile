@@ -3,6 +3,7 @@ AS		= aztec42_as
 LD      = aztec42_link
 LIB     = aztec42_lib
 STRIP   = aztec42_sqz
+CMDMOD  = cmdmod
 CFLAGS  = -I. +F +0
 CPM_LDFLAGS = -lc86
 DOS_LDFLAGS = -lc
@@ -21,8 +22,9 @@ make.cmd: make.o state.o recipe.o subproc.o execproc.o ndbm.lib util.lib
 prepoch.cmd: prepoch.o util.lib
 	$(LD) -o $@ prepoch.o util.lib $(CPM_LDFLAGS)
 
-ccpmexec.cmd: ccpmexec.o util.lib
+ccpmexec.cmd: ccpmexec.o util.lib Makefile
 	$(LD) -o $@ ccpmexec.o util.lib $(CPM_LDFLAGS)
+	$(CMDMOD) -f 1=1 $@
 
 # Header changes must rebuild every object that shares the graph/state layout.
 make.o recipe.o subproc.o execproc.o: make.h state.h
@@ -94,3 +96,8 @@ ccpmtest: cpmtest.img
 
 dosplustest: dostest.img
 	./dosplus
+
+# Command forwarding needs the original text on kernels supporting KEEP_TAIL.
+.PHONY: check-ccpmexec-tail
+check-ccpmexec-tail: ccpmexec.cmd
+	python3 -c "from pathlib import Path; assert Path('ccpmexec.cmd').read_bytes()[127] & 2"
