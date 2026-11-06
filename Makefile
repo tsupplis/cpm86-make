@@ -1,12 +1,8 @@
-CC      = aztec42_cc
-AS		= aztec42_as
-LD      = aztec42_link
+CC      = aztec42_acc
+LD      = aztec42_acc
 LIB     = aztec42_lib
-STRIP   = aztec42_sqz
 CMDMOD  = cmdmod
-CFLAGS  = -I. +F +0
-CPM_LDFLAGS = -lc86
-DOS_LDFLAGS = -lc
+CFLAGS  = -I.
 
 all: ndbm.lib util.lib ts.cmd make.cmd ccpmexec.cmd
 
@@ -14,16 +10,16 @@ all: ndbm.lib util.lib ts.cmd make.cmd ccpmexec.cmd
 # Binaries
 # --------------------------------------------------------------------
 ts.cmd: ts.o ndbm.lib util.lib
-	$(LD) -o $@ ts.o ndbm.lib util.lib $(CPM_LDFLAGS)
+	$(LD) -o $@ ts.o ndbm.lib util.lib
 
 make.cmd: make.o state.o recipe.o subproc.o execproc.o ndbm.lib util.lib
-	$(LD) -o $@ make.o state.o recipe.o subproc.o execproc.o ndbm.lib util.lib $(CPM_LDFLAGS)
+	$(LD) -o $@ make.o state.o recipe.o subproc.o execproc.o ndbm.lib util.lib
 
 prepoch.cmd: prepoch.o util.lib
-	$(LD) -o $@ prepoch.o util.lib $(CPM_LDFLAGS)
+	$(LD) -o $@ prepoch.o util.lib
 
 ccpmexec.cmd: ccpmexec.o util.lib Makefile
-	$(LD) -o $@ ccpmexec.o util.lib $(CPM_LDFLAGS)
+	$(LD) -o $@ ccpmexec.o util.lib
 	$(CMDMOD) -f 1=1 $@
 
 # Header changes must rebuild every object that shares the graph/state layout.
@@ -49,8 +45,7 @@ make.zip: $(DIST_CMD) $(DIST_DAT) $(DIST_MAK)
 # Compile rules
 # --------------------------------------------------------------------
 %.o: %.c
-	$(CC) $(CFLAGS) -o $@ $<
-	$(STRIP) $@
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 # --------------------------------------------------------------------
 # Clean
