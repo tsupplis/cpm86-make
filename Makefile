@@ -2,7 +2,7 @@ CC      = aztec42_acc
 LD      = aztec42_acc
 LIB     = aztec42_lib
 CMDMOD  = cmdmod
-CFLAGS  = -I.
+CFLAGS  = -I. -squeeze
 
 all: ndbm.lib util.lib ts.cmd make.cmd ccpmexec.cmd
 
