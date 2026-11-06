@@ -61,9 +61,9 @@ cpmtest.img: ts.cmd make.cmd ccpmexec.cmd demo.mk part1.txt part2.txt startup.0
 	cpmcp -f ibmpc-514ss cpmtest.img ts.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img make.cmd 0:
 	cpmcp -f ibmpc-514ss cpmtest.img ccpmexec.cmd 0:
-	cpmcp -f ibmpc-514ss cpmtest.img -t demo.mk 0:makefile
-	cpmcp -f ibmpc-514ss cpmtest.img -t part1.txt 0:
-	cpmcp -f ibmpc-514ss cpmtest.img -t part2.txt 0:
+	cpmcp -f ibmpc-514ss -t cpmtest.img demo.mk 0:makefile
+	cpmcp -f ibmpc-514ss -t cpmtest.img part1.txt 0:
+	cpmcp -f ibmpc-514ss -t cpmtest.img part2.txt 0:
 	cpmls -F -f ibmpc-514ss cpmtest.img
 
 dostest.img: ts.cmd make.cmd ccpmexec.cmd demo.mk part1.txt part2.txt startup.0
