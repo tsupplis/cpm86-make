@@ -125,10 +125,10 @@ with tempfile.TemporaryDirectory(prefix="cpm86-make-") as folder:
     run([cc, "-std=gnu89", "-I.", "-Dstate_save=real_state_save", "-c", "state.c", "-o", "hstate.o"], harness)
     run([cc, "-std=gnu89", "-I.", "-DMAKE_HOST_TEST", "faults.c", "subproc.c", "execproc.c", "recipe.c", "hstate.o", "-o", "faults"], harness)
     check("PASS: execution" in run(["./faults"], harness), "host fault injection, including buffered state write failure")
-    run(["aztec42_acc", "-I.", "-squeeze", "-Dstate_save=real_state_save", "-c", "-o", "fstate.o", "state.c"], harness)
+    run(["aztec43_acc", "-I.", "-squeeze", "-Dstate_save=real_state_save", "-c", "-o", "fstate.o", "state.c"], harness)
     for name in ("faults", "subproc", "execproc", "recipe"):
-        run(["aztec42_acc", "-I.", "-squeeze", "-c", "-o", f"{name}.o", f"{name}.c"], harness)
-    run(["aztec42_acc", "-o", "faults.cmd", "faults.o", "fstate.o", "subproc.o", "execproc.o", "recipe.o"], harness)
+        run(["aztec43_acc", "-I.", "-squeeze", "-c", "-o", f"{name}.o", f"{name}.c"], harness)
+    run(["aztec43_acc", "-o", "faults.cmd", "faults.o", "fstate.o", "subproc.o", "execproc.o", "recipe.o"], harness)
     check("PASS: execution" in run(["emu2", "faults.cmd"], harness), "Aztec fault injection validates 16-bit recovery and submit ordering")
 
 print(f"All {checks} safety checks and the original regression suite passed.")
