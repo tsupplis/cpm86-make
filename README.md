@@ -133,7 +133,7 @@ Output follows `cmdinfo` format:
 
 ## Build
 
-Requires the `cpm86-crossdev` toolchain (`aztec42_cc`, `aztec42_link`, etc.).
+Requires the `cpm86-crossdev` toolchain (`aztec43_acc`).
 
 The project also depends on the `util` library from
 [cpm86-hacking](https://github.com/tsupplis/cpm86-hacking) and on the `ndbm`

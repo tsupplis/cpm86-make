@@ -1,6 +1,5 @@
 CC      = aztec43_acc
 LD      = aztec43_acc
-LIB     = aztec42_lib
 CMDMOD  = cmdmod
 CFLAGS  = -I. -squeeze
 
