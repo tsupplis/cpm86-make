@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,6 +46,18 @@ with tempfile.TemporaryDirectory(prefix="cpm86-make-") as folder:
         (work / "limits.mk").write_text(text)
         output = make("-n", "-f", "limits.mk", *args)
         check("ERR:" in output and "echo " not in output, description)
+
+    # Deletion must cover more than one bounded collection of keys.
+    for i in range(260):
+        run(["emu2", "ts.cmd", "-t", "bulk", "-s", f"f{i:03}.c", "123"], work)
+    run(["emu2", "ts.cmd", "-t", "bulk", "-s", "keep.o", "456"], work)
+    run(["emu2", "ts.cmd", "-t", "bulk", "-d", "*.c"], work)
+    check(run(["emu2", "ts.cmd", "-t", "bulk", "-l"], work).strip() == "keep.o: 456",
+          "wildcard deletion spans three batches and preserves nonmatching keys")
+    run(["emu2", "ts.cmd", "-t", "bulk", "-d", "missing.c"], work)
+    run(["emu2", "ts.cmd", "-t", "bulk", "-d", "*"], work)
+    check(not run(["emu2", "ts.cmd", "-t", "bulk", "-l"], work).strip(),
+          "delete-all removes the final batch; absent exact keys are harmless")
 
     # Exactly 32 targets: all plus 31 recipes, each with one dependency.
     chain = "all: t0\n" + "".join(
@@ -115,20 +128,22 @@ with tempfile.TemporaryDirectory(prefix="cpm86-make-") as folder:
     check(run(["emu2", "ts.cmd", "-t", "probe", "result.o"], work).strip().isdigit(),
           "resumed replacement stores a timestamp")
 
+    print(run([sys.executable, str(ROOT / "tests/test_ts_delete.py")], work), end="")
+
     # Compile the same injection harness with the host compiler and with Aztec.
     harness = work / "faults"
     harness.mkdir()
-    for name in ("make.h", "state.h", "state.c", "recipe.c", "subproc.c", "execproc.c", "util.h", "sub.h", "ndbm.h"):
+    for name in ("make.h", "state.h", "state.c", "recipe.c", "subproc.c", "execproc.c", "util.h", "sub.h", "subretry.h", "subretry.c", "ndbm.h"):
         shutil.copy2(ROOT / name, harness / name)
     shutil.copy2(ROOT / "tests/faults.c", harness / "faults.c")
     cc = os.environ.get("CC_HOST", "cc")
     run([cc, "-std=gnu89", "-I.", "-Dstate_save=real_state_save", "-c", "state.c", "-o", "hstate.o"], harness)
-    run([cc, "-std=gnu89", "-I.", "-DMAKE_HOST_TEST", "faults.c", "subproc.c", "execproc.c", "recipe.c", "hstate.o", "-o", "faults"], harness)
+    run([cc, "-std=gnu89", "-I.", "-DMAKE_HOST_TEST", "-Dbdos=test_bdos", "faults.c", "subproc.c", "subretry.c", "execproc.c", "recipe.c", "hstate.o", "-o", "faults"], harness)
     check("PASS: execution" in run(["./faults"], harness), "host fault injection, including buffered state write failure")
     run(["aztec43_acc", "-I.", "-squeeze", "-Dstate_save=real_state_save", "-c", "-o", "fstate.o", "state.c"], harness)
-    for name in ("faults", "subproc", "execproc", "recipe"):
-        run(["aztec43_acc", "-I.", "-squeeze", "-c", "-o", f"{name}.o", f"{name}.c"], harness)
-    run(["aztec43_acc", "-o", "faults.cmd", "faults.o", "fstate.o", "subproc.o", "execproc.o", "recipe.o"], harness)
+    for name in ("faults", "subproc", "subretry", "execproc", "recipe"):
+        run(["aztec43_acc", "-I.", "-squeeze", *(["-Dbdos=test_bdos"] if name in ("subproc", "subretry") else []), "-c", "-o", f"{name}.o", f"{name}.c"], harness)
+    run(["aztec43_acc", "-o", "faults.cmd", "faults.o", "fstate.o", "subproc.o", "subretry.o", "execproc.o", "recipe.o"], harness)
     check("PASS: execution" in run(["emu2", "faults.cmd"], harness), "Aztec fault injection validates 16-bit recovery and submit ordering")
 
 print(f"All {checks} safety checks and the original regression suite passed.")

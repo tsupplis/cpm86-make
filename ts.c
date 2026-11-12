@@ -253,30 +253,47 @@ static int ts_del(char *dbname, char *patterns[], int count)
         ts_strlower(pat);
 
         if (ts_has_wildcards(pat)) {
-            /* Collect matching keys first, then delete */
-            nkeys = 0;
-            key = dbm_firstkey(db);
-            while (key.dptr != NULL && nkeys < TS_MAX_KEYS) {
-                if (ts_match(pat, key.dptr)) {
-                    strncpy(keys_to_del[nkeys], key.dptr, TS_KEY_LEN - 1);
-                    keys_to_del[nkeys][TS_KEY_LEN - 1] = '\0';
-                    nkeys++;
+            /* Restart iteration after each bounded batch: deleting while
+               walking ndbm pages can invalidate the iterator. */
+            do {
+                nkeys = 0;
+                key = dbm_firstkey(db);
+                while (key.dptr != NULL && nkeys < TS_MAX_KEYS) {
+                    if (ts_match(pat, key.dptr)) {
+                        strncpy(keys_to_del[nkeys], key.dptr, TS_KEY_LEN - 1);
+                        keys_to_del[nkeys][TS_KEY_LEN - 1] = '\0';
+                        nkeys++;
+                    }
+                    key = dbm_nextkey(db);
                 }
-                key = dbm_nextkey(db);
-            }
-
-            for (k = 0; k < nkeys; k++) {
-                key = ts_str_datum(keys_to_del[k]);
-                dbm_delete(db, key);
-            }
+                if (dbm_error(db)) goto delete_error;
+                for (k = 0; k < nkeys; k++) {
+                    key = ts_str_datum(keys_to_del[k]);
+                    if (dbm_delete(db, key) < 0 || dbm_error(db)) goto delete_error;
+                    /* Do not loop forever if a backend reports success
+                       without removing the key. */
+                    if (dbm_fetch(db, key).dptr != NULL || dbm_error(db))
+                        goto delete_error;
+                }
+            } while (nkeys);
         } else {
             key = ts_str_datum(pat);
-            dbm_delete(db, key);
+            /* Deleting an absent key remains an idempotent operation. */
+            if (dbm_fetch(db, key).dptr != NULL) {
+                if (dbm_delete(db, key) < 0 || dbm_error(db)) goto delete_error;
+                if (dbm_fetch(db, key).dptr != NULL) goto delete_error;
+            }
+            if (dbm_error(db)) goto delete_error;
         }
     }
 
     dbm_close(db);
     return 0;
+
+delete_error:
+    fprintf(stderr, "ERR: Timestamp deletion incomplete in '%s'\n", dbname);
+    dbm_close(db);
+    return 1;
 }
 
 /* List all timestamps recorded in the database */

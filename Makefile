@@ -11,8 +11,8 @@ all: ndbm.lib util.lib ts.cmd make.cmd ccpmexec.cmd
 ts.cmd: ts.o ndbm.lib util.lib
 	$(LD) -o $@ ts.o ndbm.lib util.lib
 
-make.cmd: make.o state.o recipe.o subproc.o execproc.o ndbm.lib util.lib
-	$(LD) -o $@ make.o state.o recipe.o subproc.o execproc.o ndbm.lib util.lib
+make.cmd: make.o state.o recipe.o subproc.o subretry.o execproc.o ndbm.lib util.lib
+	$(LD) -o $@ make.o state.o recipe.o subproc.o subretry.o execproc.o ndbm.lib util.lib
 
 prepoch.cmd: prepoch.o util.lib
 	$(LD) -o $@ prepoch.o util.lib
@@ -95,3 +95,5 @@ dosplustest: dostest.img
 .PHONY: check-ccpmexec-tail
 check-ccpmexec-tail: ccpmexec.cmd
 	python3 -c "from pathlib import Path; assert Path('ccpmexec.cmd').read_bytes()[127] & 2"
+
+subproc.o subretry.o: subretry.h

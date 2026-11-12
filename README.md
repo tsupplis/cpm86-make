@@ -116,6 +116,10 @@ timestamp is stored. With a signed 32-bit epoch, dates after
 A bare `make` resumes the saved build; `-r` resets it and restores any recorded
 backup. Inspect `make.bak` manually if state is damaged. Dry runs preserve state.
 
+`ts -d` processes wildcard matches in bounded batches until all matches are
+removed. Database read/delete failures and unsuccessful deletion are reported
+as incomplete operations; a missing exact key is harmless.
+
 Limits: 32 targets, 16 prerequisites and commands per target, 32 variables,
 127-character logical lines, and 125-character expanded commands. Limit and
 write errors stop the build; failed submit writes roll back the appended batch.

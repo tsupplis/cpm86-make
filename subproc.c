@@ -2,6 +2,8 @@
 #include <string.h>
 #include "make.h"
 #include "sub.h"
+extern int bdos();
+#include "subretry.h"
 
 int sub_process(make_state_t *state, make_graph_t *graph, char *makefile,
                 char *dbname, char *target)
@@ -61,10 +63,8 @@ int sub_process(make_state_t *state, make_graph_t *graph, char *makefile,
 
 failed:
     fprintf(stderr, "ERR: Cannot commit build batch\n");
-    if (opened && sub_abort() < 0) {
-        fprintf(stderr, "ERR: Submit rollback failed; inspect $$$.SUB and make.sta\n");
-        return 1;
-    }
+    if (opened)
+        while (sub_abort() < 0) sub_retry_wait();
     if (make_abort_target(state) == 0) state_delete(STATE_DEFAULT_FILE);
     return 1;
 }

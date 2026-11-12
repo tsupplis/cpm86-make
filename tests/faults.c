@@ -15,6 +15,7 @@ extern int unlink();
 static make_graph_t graph;
 static make_state_t state;
 static int fail_save, fail_open, fail_append, fail_close, fail_stamp;
+static int fail_abort, retry_keys;
 static int pending, base, appended, aborted, launched, attached, launch_error;
 static int create_output, fail_priority, fail_attach, positive_stamps;
 static long last_stamp, clock_value;
@@ -60,12 +61,21 @@ int sub_append(char *command)
     return 0;
 }
 int sub_close(void) { return fail_close ? -1 : 0; }
-int sub_abort(void) { pending = base; aborted++; return 0; }
+int sub_abort(void) { aborted++; if(fail_abort) return -1; pending = base; return 0; }
 int getppriority(void) { return parent_priority; }
 #ifdef MAKE_HOST_TEST
 int getusr(void) { return 1; }
-int bdos(int fn, int dx) { return 2; }
 #endif
+int test_bdos(int fn, int dx) {
+    if(fn==6 && dx==255) {
+        if(!make_file_exists("make.sta") || !make_file_exists("make.bak") ||
+           pending!=6 || !fail_abort) { puts("FAIL: recovery state lost while waiting"); exit(1); }
+        retry_keys++;
+        if(retry_keys==1) return 3; /* Ctrl-C must not abandon recovery. */
+        fail_abort=0;return 'R';
+    }
+    return 2;
+}
 int p_cli(char *command)
 {
     FILE *fp;
@@ -126,6 +136,7 @@ static void setup(void)
     graph.targets[0].cmds[1] = "finish result.o";
     state_init(&state, "build.mk", "testts", "result.o");
     state_push(&state, "result.o");
+    fail_abort = retry_keys = 0;
     fail_save = fail_open = fail_append = fail_close = fail_stamp = 0;
     pending = 4; base = appended = aborted = launched = attached = 0;
     launch_error = create_output = fail_priority = fail_attach = positive_stamps = 0;
@@ -174,6 +185,10 @@ int main(void)
         require(!make_file_exists("make.sta") && positive_stamps == 0, "submit fault not committed");
         if (i >= 2 && i <= 5) require(aborted == 1, "partial append rolled back");
     }
+    setup();fail_append=3;fail_abort=1;
+    require(submit()!=0 && retry_keys==2 && aborted==2 && pending==4,
+            "failed rollback waits through Ctrl-C, retries and preserves original batch");
+    require(old_output() && !make_file_exists("make.sta"), "recovery completes before state cleanup");
     setup(); launch_error = 255;
     require(execute() != 0 && launched == 1 && attached == 0, "launch failure stops before wait/next command");
     require(old_output() && !make_file_exists("make.sta") && positive_stamps == 0, "launch failure restores output");
